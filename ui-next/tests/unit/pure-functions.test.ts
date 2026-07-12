@@ -1204,3 +1204,235 @@ describe("buildEntityCountCmd", () => {
     expect(cmd.keyFilters).toEqual([]);
   });
 });
+
+// ============================================================
+// convertEntityDataToDatasourceData + updateDataKeyLabelsForComparison
+// ============================================================
+import {
+  convertEntityDataToDatasourceData, updateDataKeyLabelsForComparison,
+  calculateNextTickTs, filterAggregationMapByTimeWindow, createRealtimeUpdateCommand,
+  createGetEntityObservable, createGetEntitiesObservable,
+  parseCsvHeader, csvRowsToEntityDataArray, splitEntityDataIntoTasks,
+  buildFindEntityDataByQueryBody, buildFindAlarmDataByQueryBody,
+  toggleDataVisibility, hasTimewindowTypeChanged, calculateTsOffsetChange,
+} from "../../src/core/pure-functions";
+
+describe("convertEntityDataToDatasourceData", () => {
+  it("converts datasource + data to DatasourceData array", () => {
+    const ds = { dataKeys: [{ name: "temp", label: "Temperature", settings: {} }] };
+    const data = [{ data: [{ ts: 1000, value: 42 }] }];
+    const result = convertEntityDataToDatasourceData(ds, data, (l: string) => l);
+    expect(result).toHaveLength(1);
+    expect(result[0].dataKey.name).toBe("temp");
+    expect(result[0].data).toEqual([{ ts: 1000, value: 42 }]);
+  });
+  it("handles latestDataKeys", () => {
+    const ds = { dataKeys: [{ name: "temp", settings: {} }], latestDataKeys: [{ name: "model", settings: {} }] };
+    const data = [{ data: [] }, { data: [{ ts: 0, value: "X1" }] }];
+    const result = convertEntityDataToDatasourceData(ds, data, (l: string) => l);
+    expect(result).toHaveLength(2);
+    expect(result[1].dataKey.name).toBe("model");
+  });
+  it("sets hidden flag from settings", () => {
+    const ds = { dataKeys: [{ name: "temp", settings: { hideDataByDefault: true } }] };
+    const result = convertEntityDataToDatasourceData(ds, [], (l: string) => l);
+    expect(result[0].dataKey.hidden).toBe(true);
+  });
+  it("sets inLegend flag from settings", () => {
+    const ds = { dataKeys: [{ name: "temp", settings: { showInLegend: true } }] };
+    const result = convertEntityDataToDatasourceData(ds, [], (l: string) => l);
+    expect(result[0].dataKey.inLegend).toBe(true);
+  });
+  it("returns empty for null datasource", () => {
+    expect(convertEntityDataToDatasourceData(null, [], (l: string) => l)).toEqual([]);
+  });
+});
+
+describe("updateDataKeyLabelsForComparison", () => {
+  it("updates label for comparison additional key", () => {
+    const ds = { dataKeys: [{ isAdditional: true, label: "temp", settings: {} }] };
+    updateDataKeyLabelsForComparison(ds, true, "previousDay", (k: string) => k);
+    expect(ds.dataKeys[0].label).toContain("previousDay");
+  });
+  it("uses comparisonValuesLabel when set", () => {
+    const ds = { dataKeys: [{ isAdditional: true, label: "temp", settings: { comparisonSettings: { comparisonValuesLabel: "Prev" } } }] };
+    updateDataKeyLabelsForComparison(ds, true, "previousDay", (k: string) => k);
+    expect(ds.dataKeys[0].label).toBe("Prev");
+  });
+  it("does not modify non-additional keys", () => {
+    const ds = { dataKeys: [{ label: "temp", settings: {} }] };
+    updateDataKeyLabelsForComparison(ds, true, "previousDay", (k: string) => k);
+    expect(ds.dataKeys[0].label).toBe("temp");
+  });
+});
+
+describe("calculateNextTickTs", () => {
+  it("advances start/end by tickTs for non-quick intervals", () => {
+    const result = calculateNextTickTs(0, 60000, 3000, 1000, undefined, "UTC");
+    expect(result.delta).toBe(3);
+    expect(result.newStartTs).toBe(3000);
+    expect(result.newEndTs).toBe(63000);
+  });
+  it("keeps start/end for quick intervals", () => {
+    const result = calculateNextTickTs(0, 60000, 3000, 1000, "LAST_HOUR", "UTC");
+    expect(result.newStartTs).toBe(0);
+    expect(result.newEndTs).toBe(60000);
+  });
+});
+
+describe("filterAggregationMapByTimeWindow", () => {
+  it("filters entries outside time window", () => {
+    const map = new Map();
+    const keyMap = new Map();
+    keyMap.set(500, createEmptyAggData(500, [0, 1000]));
+    keyMap.set(5000, createEmptyAggData(5000, [0, 1000]));
+    keyMap.set(15000, createEmptyAggData(15000, [0, 1000]));
+    map.set(0, keyMap);
+    const result = filterAggregationMapByTimeWindow(map, 1000, 10000);
+    expect(result.get(0)?.size).toBe(1); // only 5000
+  });
+  it("returns empty for empty map", () => {
+    expect(filterAggregationMapByTimeWindow(new Map(), 0, 1000).size).toBe(0);
+  });
+});
+
+describe("createRealtimeUpdateCommand", () => {
+  it("builds update command", () => {
+    const cmd = createRealtimeUpdateCommand(1, 1000, 2000, ["temp"]);
+    expect(cmd.cmdId).toBe(1);
+    expect(cmd.startTs).toBe(1000);
+    expect(cmd.endTs).toBe(2000);
+    expect(cmd.keys).toEqual(["temp"]);
+  });
+});
+
+describe("createGetEntityObservable + createGetEntitiesObservable", () => {
+  it("dispatches getEntity", () => {
+    const services = { deviceService: { getDevice: () => "got" } };
+    const result = createGetEntityObservable("DEVICE", "d1", services);
+    expect(result).toBe("got");
+  });
+  it("dispatches getEntities", () => {
+    const services = { deviceService: { getDevices: () => "got-list" } };
+    const result = createGetEntitiesObservable("DEVICE", ["d1"], services);
+    expect(result).toBe("got-list");
+  });
+});
+
+describe("parseCsvHeader", () => {
+  it("parses header row", () => {
+    expect(parseCsvHeader("name,type,value")).toEqual(["name", "type", "value"]);
+  });
+  it("handles quoted headers", () => {
+    expect(parseCsvHeader('"Device Name",type')).toEqual(["Device Name", "type"]);
+  });
+});
+
+describe("csvRowsToEntityDataArray", () => {
+  it("converts multiple CSV rows", () => {
+    const headers = ["name", "value"];
+    const rows = ["Device1,42", "Device2,43"];
+    const result = csvRowsToEntityDataArray(headers, rows);
+    expect(result).toHaveLength(2);
+    expect(result[0].name).toBe("Device1");
+    expect(result[0].value).toBe(42);
+    expect(result[1].name).toBe("Device2");
+  });
+  it("skips empty lines", () => {
+    expect(csvRowsToEntityDataArray(["name"], ["", "  "])).toEqual([]);
+  });
+});
+
+describe("splitEntityDataIntoTasks", () => {
+  it("splits into create + update", () => {
+    const newData = [{ id: "1", name: "A" }, { id: "2", name: "B" }, { id: "3", name: "C" }];
+    const existing = [{ id: "1", name: "A" }, { id: "2", name: "B" }];
+    const result = splitEntityDataIntoTasks(newData, existing);
+    expect(result.toCreate).toHaveLength(1);
+    expect(result.toUpdate).toHaveLength(2);
+  });
+  it("all create when no existing", () => {
+    const result = splitEntityDataIntoTasks([{ name: "A" }], []);
+    expect(result.toCreate).toHaveLength(1);
+    expect(result.toUpdate).toHaveLength(0);
+  });
+  it("handles empty input", () => {
+    const result = splitEntityDataIntoTasks([], []);
+    expect(result.toCreate).toEqual([]);
+    expect(result.toUpdate).toEqual([]);
+  });
+});
+
+describe("buildFindEntityDataByQueryBody", () => {
+  it("builds query body", () => {
+    const body = buildFindEntityDataByQueryBody({ entityFilter: { type: "singleEntity" } });
+    expect(body.entityFilter.type).toBe("singleEntity");
+    expect(body.pageLink.page).toBe(0);
+  });
+  it("handles null query", () => {
+    const body = buildFindEntityDataByQueryBody(null);
+    expect(body).toEqual({});
+  });
+});
+
+describe("buildFindAlarmDataByQueryBody", () => {
+  it("builds alarm query body", () => {
+    const body = buildFindAlarmDataByQueryBody({ entityFilter: { type: "singleEntity" } });
+    expect(body.entityFilter.type).toBe("singleEntity");
+  });
+  it("handles null query", () => {
+    const body = buildFindAlarmDataByQueryBody(null);
+    expect(body).toEqual({});
+});
+
+describe("toggleDataVisibility", () => {
+  it("hides data when key is hidden", () => {
+    const data = [{ data: [{ ts: 1, value: 10 }] }];
+    const hiddenData = [{ data: [] }];
+    const keys = [{ dataIndex: 0, dataKey: { hidden: true } }];
+    const result = toggleDataVisibility(data, hiddenData, keys, 0);
+    expect(result.data[0].data).toEqual([]);
+    expect(result.hiddenData[0].data).toEqual([{ ts: 1, value: 10 }]);
+  });
+  it("shows data when key is not hidden", () => {
+    const data = [{ data: [] }];
+    const hiddenData = [{ data: [{ ts: 1, value: 10 }] }];
+    const keys = [{ dataIndex: 0, dataKey: { hidden: false } }];
+    const result = toggleDataVisibility(data, hiddenData, keys, 0);
+    expect(result.data[0].data).toEqual([{ ts: 1, value: 10 }]);
+    expect(result.hiddenData[0].data).toEqual([]);
+  });
+  it("handles missing legend keys", () => {
+    const data = [{ data: [{ ts: 1, value: 10 }] }];
+    const result = toggleDataVisibility(data, [{ data: [] }], [], 0);
+    // key undefined → not hidden → else branch: data from hiddenData (empty), hiddenData cleared
+    expect(result.data[0].data).toEqual([]);
+    expect(result.hiddenData[0].data).toEqual([]);
+  });
+});
+
+describe("hasTimewindowTypeChanged", () => {
+  it("true when selectedTab differs", () => {
+    expect(hasTimewindowTypeChanged({ selectedTab: 0 }, { selectedTab: 1 })).toBe(true);
+  });
+  it("false when same selectedTab", () => {
+    expect(hasTimewindowTypeChanged({ selectedTab: 0 }, { selectedTab: 0 })).toBe(false);
+  });
+  it("true when old is null", () => {
+    expect(hasTimewindowTypeChanged(null, { selectedTab: 0 })).toBe(true);
+  });
+  it("uses realtime presence when selectedTab missing", () => {
+    expect(hasTimewindowTypeChanged({ realtime: {} }, {})).toBe(true);
+  });
+});
+
+describe("calculateTsOffsetChange", () => {
+  it("true when timezones differ", () => {
+    expect(calculateTsOffsetChange("UTC", "America/New_York")).toBe(true);
+  });
+  it("false when same timezone", () => {
+    expect(calculateTsOffsetChange("UTC", "UTC")).toBe(false);
+  });
+});
+
+});

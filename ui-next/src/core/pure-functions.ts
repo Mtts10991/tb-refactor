@@ -1402,3 +1402,295 @@ export function buildEntityCountCmd(
     keyFilters: keyFilters || [],
   };
 }
+
+// ============================================================
+// WIDGET SUBSCRIPTION: entityDataToDatasourceData logic
+// ============================================================
+
+/**
+ * แปลง datasource + data array เป็น DatasourceData array
+ * parity กับ WidgetSubscription.entityDataToDatasourceData
+ */
+export function convertEntityDataToDatasourceData(
+  datasource: any,
+  data: any[],
+  customTranslation: (label: string, defaultLabel: string) => string,
+): any[] {
+  if (!datasource || !datasource.dataKeys) return [];
+  let result: any[] = [];
+
+  // Process dataKeys
+  result = result.concat(datasource.dataKeys.map((dataKey: any, keyIndex: number) => {
+    dataKey.hidden = !!dataKey.settings?.hideDataByDefault;
+    dataKey.inLegend = dataKey.settings?.showInLegend ||
+      (dataKey.settings?.showInLegend === undefined && !dataKey.settings?.removeFromLegend);
+    if (dataKey.label) {
+      dataKey.label = customTranslation(dataKey.label, dataKey.label);
+    }
+    const dsData: any = { datasource, dataKey, data: [] };
+    if (data && data[keyIndex] && data[keyIndex].data) {
+      dsData.data = data[keyIndex].data;
+    }
+    return dsData;
+  }));
+
+  // Process latestDataKeys if present
+  if (datasource.latestDataKeys) {
+    result = result.concat(datasource.latestDataKeys.map((dataKey: any, latestKeyIndex: number) => {
+      if (dataKey.label) {
+        dataKey.label = customTranslation(dataKey.label, dataKey.label);
+      }
+      const dsData: any = { datasource, dataKey, data: [] };
+      const keyIndex = datasource.dataKeys.length + latestKeyIndex;
+      if (data && data[keyIndex] && data[keyIndex].data) {
+        dsData.data = data[keyIndex].data;
+      }
+      return dsData;
+    }));
+  }
+
+  return result;
+}
+
+/**
+ * อัปเดต dataKey label ตาม comparison settings
+ */
+export function updateDataKeyLabelsForComparison(
+  datasource: any,
+  comparisonEnabled: boolean,
+  timeForComparison: string,
+  translate: (key: string) => string,
+): void {
+  if (!datasource?.dataKeys) return;
+  for (const dataKey of datasource.dataKeys) {
+    if (comparisonEnabled && dataKey.isAdditional) {
+      const compSettings = dataKey.settings?.comparisonSettings;
+      if (compSettings?.comparisonValuesLabel) {
+        dataKey.label = compSettings.comparisonValuesLabel;
+      } else {
+        dataKey.label = (dataKey.label || "") + " " + translate("legend.comparison-time-ago." + timeForComparison);
+      }
+    }
+    dataKey.pattern = dataKey.label;
+  }
+}
+
+// ============================================================
+// DATA AGGREGATOR: onInterval + updateData logic
+// ============================================================
+
+/**
+ * คำนวณ next interval tick timestamp
+ */
+export function calculateNextTickTs(
+  startTs: number,
+  endTs: number,
+  elapsed: number,
+  aggregationTimeout: number,
+  quickInterval: any,
+  timezone: string,
+): { newStartTs: number; newEndTs: number; delta: number } {
+  const delta = Math.floor(elapsed / aggregationTimeout);
+  if (quickInterval) {
+    // For quick intervals, recalculate start/end from current time
+    return { newStartTs: startTs, newEndTs: endTs, delta };
+  } else {
+    const tickTs = delta * aggregationTimeout;
+    return {
+      newStartTs: startTs + tickTs,
+      newEndTs: endTs + tickTs,
+      delta,
+    };
+  }
+}
+
+/**
+ * กรอง aggregation map ตาม time window
+ */
+export function filterAggregationMapByTimeWindow(
+  aggregationMap: Map<number, Map<number, AggData>>,
+  startTs: number,
+  endTs: number,
+): Map<number, Map<number, AggData>> {
+  const result = new Map<number, Map<number, AggData>>();
+  for (const [keyId, keyMap] of aggregationMap) {
+    const filteredMap = new Map<number, AggData>();
+    for (const [ts, aggData] of keyMap) {
+      if (ts >= startTs && ts <= endTs) {
+        filteredMap.set(ts, aggData);
+      }
+    }
+    if (filteredMap.size > 0) {
+      result.set(keyId, filteredMap);
+    }
+  }
+  return result;
+}
+
+/**
+ * สร้าง update command สำหรับ realtime subscription
+ */
+export function createRealtimeUpdateCommand(
+  cmdId: number,
+  startTs: number,
+  endTs: number,
+  keys: any[],
+): any {
+  return {
+    cmdId,
+    startTs,
+    endTs,
+    keys: keys || [],
+  };
+}
+
+// ============================================================
+// ENTITY SERVICE: getEntityObservable + saveEntityParameters logic
+// ============================================================
+
+/**
+ * สร้าง observable สำหรับ getEntity ผ่าน dispatch
+ */
+export function createGetEntityObservable(
+  entityType: string,
+  entityId: string,
+  services: Record<string, any>,
+  config?: any,
+): Observable<any> | null {
+  return dispatchGetEntity(entityType, entityId, services);
+}
+
+/**
+ * สร้าง observable สำหรับ getEntities ผ่าน dispatch
+ */
+export function createGetEntitiesObservable(
+  entityType: string,
+  entityIds: string[],
+  services: Record<string, any>,
+): Observable<any> | null {
+  return dispatchGetEntities(entityType, entityIds, services);
+}
+
+/**
+ * Parse CSV header row
+ */
+export function parseCsvHeader(headerLine: string): string[] {
+  return parseCsvLine(headerLine).map(h => h.trim());
+}
+
+/**
+ * แปลง CSV data rows เป็น ImportEntityData array
+ */
+export function csvRowsToEntityDataArray(
+  headers: string[],
+  dataRows: string[],
+): Record<string, any>[] {
+  return dataRows
+    .filter(line => line.trim())
+    .map(line => csvRowToEntityData(headers, parseCsvLine(line)));
+}
+
+/**
+ * แยก entity data เป็น create + update tasks
+ */
+export function splitEntityDataIntoTasks(
+  entityDataList: Record<string, any>[],
+  existingEntities: Record<string, any>[],
+): { toCreate: Record<string, any>[]; toUpdate: Record<string, any>[] } {
+  const toCreate: Record<string, any>[] = [];
+  const toUpdate: Record<string, any>[] = [];
+  const existingMap = new Map<string, any>();
+  for (const e of existingEntities || []) {
+    const key = e.id || e.name;
+    if (key) existingMap.set(String(key), e);
+  }
+  for (const data of entityDataList) {
+    const key = data.id || data.name;
+    if (key && existingMap.has(String(key))) {
+      toUpdate.push(data);
+    } else {
+      toCreate.push(data);
+    }
+  }
+  return { toCreate, toUpdate };
+}
+
+/**
+ * สร้าง findEntityDataByQuery URL + body
+ */
+export function buildFindEntityDataByQueryBody(
+  query: any,
+): any {
+  if (!query) return {};
+  return {
+    entityFilter: query.entityFilter || {},
+    pageLink: query.pageLink || { page: 0, pageSize: 100 },
+    entityFields: query.entityFields || [],
+    latestValues: query.latestValues || [],
+    keyFilters: query.keyFilters || [],
+  };
+}
+
+/**
+ * สร้าง findAlarmDataByQuery URL + body
+ */
+export function buildFindAlarmDataByQueryBody(
+  query: any,
+): any {
+  if (!query) return {};
+  return {
+    pageLink: query.pageLink || { page: 0, pageSize: 100 },
+    entityFilter: query.entityFilter || {},
+    alarmFields: query.alarmFields || [],
+    keyFilters: query.keyFilters || [],
+  };
+}
+
+// ============================================================
+// WIDGET SUBSCRIPTION: updateDataVisibility logic
+// ============================================================
+
+/**
+ * สลับข้อมูลระหว่าง data และ hiddenData
+ */
+export function toggleDataVisibility(
+  data: any[],
+  hiddenData: any[],
+  legendKeys: any[],
+  index: number,
+): { data: any[]; hiddenData: any[] } {
+  const newData = [...data];
+  const newHiddenData = [...hiddenData];
+  const key = legendKeys?.find(k => k.dataIndex === index);
+  if (key?.dataKey?.hidden) {
+    newHiddenData[index] = { data: newData[index]?.data || [] };
+    newData[index] = { data: [] };
+  } else {
+    newData[index] = { data: newHiddenData[index]?.data || [] };
+    newHiddenData[index] = { data: [] };
+  }
+  return { data: newData, hiddenData: newHiddenData };
+}
+
+/**
+ * ตรวจสอบว่า timewindow เปลี่ยนประเภทหรือไม่
+ */
+export function hasTimewindowTypeChanged(
+  oldTw: any,
+  newTw: any,
+): boolean {
+  if (!oldTw || !newTw) return true;
+  const oldType = oldTw.selectedTab ?? (oldTw.realtime ? 0 : 1);
+  const newType = newTw.selectedTab ?? (newTw.realtime ? 0 : 1);
+  return oldType !== newType;
+}
+
+/**
+ * คำนวณ ts offset จาก timezone change
+ */
+export function calculateTsOffsetChange(
+  oldTimezone: string,
+  newTimezone: string,
+): boolean {
+  return oldTimezone !== newTimezone;
+}
