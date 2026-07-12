@@ -183,7 +183,15 @@ export class DataAggregator {
   private resetPending = false;
   private updatedData = false;
 
-  private aggregationTimeout = this.isLatestDataAgg ? 1000 : Math.max(IntervalMath.numberValue(this.subsTw.aggregation.interval), 1000);
+  // Lazy initialization to avoid ES2022 field initializer ordering issue
+  // (IntervalMath may be undefined during field init in vitest without Angular runtime)
+  private _aggregationTimeout: number | null = null;
+  private get aggregationTimeout(): number {
+    if (this._aggregationTimeout === null) {
+      this._aggregationTimeout = this.isLatestDataAgg ? 1000 : Math.max(IntervalMath.numberValue(this.subsTw?.aggregation?.interval ?? 1000), 1000);
+    }
+    return this._aggregationTimeout;
+  }
 
   private intervalTimeoutHandle: Timeout;
   private intervalScheduledTime: number;
@@ -233,7 +241,8 @@ export class DataAggregator {
     this.intervalScheduledTime = this.utils.currentPerfTime();
     this.calculateStartEndTs();
     this.elapsed = 0;
-    this.aggregationTimeout = this.isLatestDataAgg ? 1000 : Math.max(IntervalMath.numberValue(this.subsTw.aggregation.interval), 1000);
+    // Reset lazy cache so it recalculates with new subsTw
+    this._aggregationTimeout = this.isLatestDataAgg ? 1000 : Math.max(IntervalMath.numberValue(this.subsTw?.aggregation?.interval ?? 1000), 1000);
     this.resetPending = true;
     this.updatedData = false;
     this.intervalTimeoutHandle = setTimeout(this.onInterval.bind(this), Math.min(this.aggregationTimeout, MAX_INTERVAL_TIMEOUT));

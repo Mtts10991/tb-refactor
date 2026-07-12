@@ -82,12 +82,17 @@ describe("DataAggregator stateful execution", () => {
   let originalSetTimeout: typeof setTimeout;
   let originalClearTimeout: typeof clearTimeout;
 
+  let setTimeoutCallCount = 0;
   beforeEach(() => {
     originalSetTimeout = global.setTimeout;
     originalClearTimeout = global.clearTimeout;
-    // Mock setTimeout to execute immediately (for interval scheduling)
+    setTimeoutCallCount = 0;
+    // Mock setTimeout: execute first call, return dummy for subsequent (prevent infinite recursion)
     global.setTimeout = ((fn: () => void) => {
-      fn();
+      if (setTimeoutCallCount < 2) {
+        setTimeoutCallCount++;
+        fn();
+      }
       return 0 as any;
     }) as any;
     global.clearTimeout = (() => {}) as any;
@@ -117,165 +122,131 @@ describe("DataAggregator stateful execution", () => {
     };
   }
 
-  // DataAggregator has a field initializer that uses IntervalMath.numberValue(this.subsTw.aggregation.interval)
-  // With ES2022 target, this runs before constructor params are assigned in some vitest configs.
-  // We use try/catch to still get partial coverage when it works.
+  // DataAggregator now uses lazy initialization (getter) instead of field initializer
+  // This fixes the ES2022 issue where IntervalMath was undefined during field init
 
   it("constructor initializes dataBuffer for tsKeys", () => {
-    try {
-      const cb = vi.fn();
-      const agg = new DataAggregator(cb, [{ id: 0, key: "temp", agg: "AVG" }], false, createSubsTw() as any, createUtils() as any, false);
-      expect(agg).toBeDefined();
-      agg.destroy();
-    } catch (e) {
-      // Field initializer issue with ES2022 + vitest
-      expect(true).toBe(true);
-    }
+    const cb = vi.fn();
+    const agg = new DataAggregator(cb, [{ id: 0, key: "temp", agg: "AVG" }], false, createSubsTw() as any, createUtils() as any, false);
+    expect(agg).toBeDefined();
+    agg.destroy();
   });
 
   it("onData with initial data", () => {
-    try {
-      const cb = vi.fn();
-      const agg = new DataAggregator(cb, [{ id: 0, key: "temp", agg: "AVG" }], false, createSubsTw() as any, createUtils() as any, false);
-      agg.onData({ 0: [{ ts: 500, value: 10 }] } as any, false, false, true);
-      expect(cb).toHaveBeenCalled();
-      agg.destroy();
-    } catch { expect(true).toBe(true); }
+    const cb = vi.fn();
+    const agg = new DataAggregator(cb, [{ id: 0, key: "temp", agg: "AVG" }], false, createSubsTw() as any, createUtils() as any, false);
+    agg.onData({ 0: [{ ts: 500, value: 10 }] } as any, false, false, true);
+    expect(cb).toHaveBeenCalled();
+    agg.destroy();
   });
 
   it("onData with update=true", () => {
-    try {
-      const cb = vi.fn();
-      const agg = new DataAggregator(cb, [{ id: 0, key: "temp", agg: "AVG" }], false, createSubsTw() as any, createUtils() as any, false);
-      agg.onData({ 0: [{ ts: 500, value: 10 }] } as any, false, false, true);
-      agg.onData({ 0: [{ ts: 1500, value: 20 }] } as any, true, false, true);
-      expect(cb).toHaveBeenCalled();
-      agg.destroy();
-    } catch { expect(true).toBe(true); }
+    const cb = vi.fn();
+    const agg = new DataAggregator(cb, [{ id: 0, key: "temp", agg: "AVG" }], false, createSubsTw() as any, createUtils() as any, false);
+    agg.onData({ 0: [{ ts: 500, value: 10 }] } as any, false, false, true);
+    agg.onData({ 0: [{ ts: 1500, value: 20 }] } as any, true, false, true);
+    expect(cb).toHaveBeenCalled();
+    agg.destroy();
   });
 
   it("onData with history=true", () => {
-    try {
-      const cb = vi.fn();
-      const histSubsTw = { ...createSubsTw(), realtimeWindowMs: 0, fixedWindow: { startTimeMs: 0, endTimeMs: 10000 }, aggregation: { interval: 1000, type: "AVG", limit: 1000, timeWindow: 10000, stateData: false } };
-      const agg = new DataAggregator(cb, [{ id: 0, key: "temp", agg: "AVG" }], false, histSubsTw as any, createUtils() as any, false);
-      agg.onData({ 0: [{ ts: 500, value: 10 }, { ts: 1500, value: 20 }, { ts: 2500, value: 30 }] } as any, false, true, true);
-      expect(cb).toHaveBeenCalled();
-      agg.destroy();
-    } catch { expect(true).toBe(true); }
+    const cb = vi.fn();
+    const histSubsTw = { ...createSubsTw(), realtimeWindowMs: 0, fixedWindow: { startTimeMs: 0, endTimeMs: 10000 }, aggregation: { interval: 1000, type: "AVG", limit: 1000, timeWindow: 10000, stateData: false } };
+    const agg = new DataAggregator(cb, [{ id: 0, key: "temp", agg: "AVG" }], false, histSubsTw as any, createUtils() as any, false);
+    agg.onData({ 0: [{ ts: 500, value: 10 }, { ts: 1500, value: 20 }, { ts: 2500, value: 30 }] } as any, false, true, true);
+    expect(cb).toHaveBeenCalled();
+    agg.destroy();
   });
 
   it("reset after data received", () => {
-    try {
-      const cb = vi.fn();
-      const agg = new DataAggregator(cb, [{ id: 0, key: "temp", agg: "AVG" }], false, createSubsTw() as any, createUtils() as any, false);
-      agg.onData({ 0: [{ ts: 500, value: 10 }] } as any, false, false, true);
-      agg.reset(createSubsTw() as any);
-      agg.onData({ 0: [{ ts: 1500, value: 20 }] } as any, true, false, true);
-      expect(cb).toHaveBeenCalled();
-      agg.destroy();
-    } catch { expect(true).toBe(true); }
+    const cb = vi.fn();
+    const agg = new DataAggregator(cb, [{ id: 0, key: "temp", agg: "AVG" }], false, createSubsTw() as any, createUtils() as any, false);
+    agg.onData({ 0: [{ ts: 500, value: 10 }] } as any, false, false, true);
+    agg.reset(createSubsTw() as any);
+    agg.onData({ 0: [{ ts: 1500, value: 20 }] } as any, true, false, true);
+    expect(cb).toHaveBeenCalled();
+    agg.destroy();
   });
 
   it("updateOnDataCb returns previous callback", () => {
-    try {
-      const cb1 = vi.fn(); const cb2 = vi.fn();
-      const agg = new DataAggregator(cb1, [{ id: 0, key: "temp", agg: "AVG" }], false, createSubsTw() as any, createUtils() as any, false);
-      const prev = agg.updateOnDataCb(cb2);
-      expect(prev).toBe(cb1);
-      agg.destroy();
-    } catch { expect(true).toBe(true); }
+    const cb1 = vi.fn(); const cb2 = vi.fn();
+    const agg = new DataAggregator(cb1, [{ id: 0, key: "temp", agg: "AVG" }], false, createSubsTw() as any, createUtils() as any, false);
+    const prev = agg.updateOnDataCb(cb2);
+    expect(prev).toBe(cb1);
+    agg.destroy();
   });
 
   it("AVG aggregation", () => {
-    try {
-      const cb = vi.fn();
-      const agg = new DataAggregator(cb, [{ id: 0, key: "temp", agg: "AVG" }], false, createSubsTw() as any, createUtils() as any, false);
-      agg.onData({ 0: [{ ts: 100, value: 10 }, { ts: 200, value: 20 }, { ts: 300, value: 30 }] } as any, false, false, true);
-      expect(cb).toHaveBeenCalled();
-      agg.destroy();
-    } catch { expect(true).toBe(true); }
+    const cb = vi.fn();
+    const agg = new DataAggregator(cb, [{ id: 0, key: "temp", agg: "AVG" }], false, createSubsTw() as any, createUtils() as any, false);
+    agg.onData({ 0: [{ ts: 100, value: 10 }, { ts: 200, value: 20 }, { ts: 300, value: 30 }] } as any, false, false, true);
+    expect(cb).toHaveBeenCalled();
+    agg.destroy();
   });
 
   it("MIN aggregation", () => {
-    try {
-      const cb = vi.fn();
-      const agg = new DataAggregator(cb, [{ id: 0, key: "temp", agg: "MIN" }], false, createSubsTw() as any, createUtils() as any, false);
-      agg.onData({ 0: [{ ts: 100, value: 30 }, { ts: 200, value: 10 }, { ts: 300, value: 20 }] } as any, false, false, true);
-      expect(cb).toHaveBeenCalled();
-      agg.destroy();
-    } catch { expect(true).toBe(true); }
+    const cb = vi.fn();
+    const agg = new DataAggregator(cb, [{ id: 0, key: "temp", agg: "MIN" }], false, createSubsTw() as any, createUtils() as any, false);
+    agg.onData({ 0: [{ ts: 100, value: 30 }, { ts: 200, value: 10 }, { ts: 300, value: 20 }] } as any, false, false, true);
+    expect(cb).toHaveBeenCalled();
+    agg.destroy();
   });
 
   it("MAX aggregation", () => {
-    try {
-      const cb = vi.fn();
-      const agg = new DataAggregator(cb, [{ id: 0, key: "temp", agg: "MAX" }], false, createSubsTw() as any, createUtils() as any, false);
-      agg.onData({ 0: [{ ts: 100, value: 10 }, { ts: 200, value: 50 }, { ts: 300, value: 20 }] } as any, false, false, true);
-      expect(cb).toHaveBeenCalled();
-      agg.destroy();
-    } catch { expect(true).toBe(true); }
+    const cb = vi.fn();
+    const agg = new DataAggregator(cb, [{ id: 0, key: "temp", agg: "MAX" }], false, createSubsTw() as any, createUtils() as any, false);
+    agg.onData({ 0: [{ ts: 100, value: 10 }, { ts: 200, value: 50 }, { ts: 300, value: 20 }] } as any, false, false, true);
+    expect(cb).toHaveBeenCalled();
+    agg.destroy();
   });
 
   it("SUM aggregation", () => {
-    try {
-      const cb = vi.fn();
-      const agg = new DataAggregator(cb, [{ id: 0, key: "temp", agg: "SUM" }], false, createSubsTw() as any, createUtils() as any, false);
-      agg.onData({ 0: [{ ts: 100, value: 10 }, { ts: 200, value: 20 }, { ts: 300, value: 30 }] } as any, false, false, true);
-      expect(cb).toHaveBeenCalled();
-      agg.destroy();
-    } catch { expect(true).toBe(true); }
+    const cb = vi.fn();
+    const agg = new DataAggregator(cb, [{ id: 0, key: "temp", agg: "SUM" }], false, createSubsTw() as any, createUtils() as any, false);
+    agg.onData({ 0: [{ ts: 100, value: 10 }, { ts: 200, value: 20 }, { ts: 300, value: 30 }] } as any, false, false, true);
+    expect(cb).toHaveBeenCalled();
+    agg.destroy();
   });
 
   it("COUNT aggregation", () => {
-    try {
-      const cb = vi.fn();
-      const agg = new DataAggregator(cb, [{ id: 0, key: "temp", agg: "COUNT" }], false, createSubsTw() as any, createUtils() as any, false);
-      agg.onData({ 0: [{ ts: 100, value: 10 }, { ts: 200, value: 20 }, { ts: 300, value: 30 }] } as any, false, false, true);
-      expect(cb).toHaveBeenCalled();
-      agg.destroy();
-    } catch { expect(true).toBe(true); }
+    const cb = vi.fn();
+    const agg = new DataAggregator(cb, [{ id: 0, key: "temp", agg: "COUNT" }], false, createSubsTw() as any, createUtils() as any, false);
+    agg.onData({ 0: [{ ts: 100, value: 10 }, { ts: 200, value: 20 }, { ts: 300, value: 30 }] } as any, false, false, true);
+    expect(cb).toHaveBeenCalled();
+    agg.destroy();
   });
 
   it("NONE aggregation", () => {
-    try {
-      const cb = vi.fn();
-      const agg = new DataAggregator(cb, [{ id: 0, key: "temp", agg: "NONE" }], false, createSubsTw("NONE") as any, createUtils() as any, false);
-      agg.onData({ 0: [{ ts: 100, value: 10 }, { ts: 200, value: 20 }] } as any, false, false, true);
-      expect(cb).toHaveBeenCalled();
-      agg.destroy();
-    } catch { expect(true).toBe(true); }
+    const cb = vi.fn();
+    const agg = new DataAggregator(cb, [{ id: 0, key: "temp", agg: "NONE" }], false, createSubsTw("NONE") as any, createUtils() as any, false);
+    agg.onData({ 0: [{ ts: 100, value: 10 }, { ts: 200, value: 20 }] } as any, false, false, true);
+    expect(cb).toHaveBeenCalled();
+    agg.destroy();
   });
 
   it("multiple tsKeys", () => {
-    try {
-      const cb = vi.fn();
-      const agg = new DataAggregator(cb, [{ id: 0, key: "temp", agg: "AVG" }, { id: 1, key: "hum", agg: "MAX" }], false, createSubsTw() as any, createUtils() as any, false);
-      agg.onData({ 0: [{ ts: 100, value: 10 }, { ts: 200, value: 20 }], 1: [{ ts: 100, value: 30 }, { ts: 200, value: 50 }] } as any, false, false, true);
-      expect(cb).toHaveBeenCalled();
-      agg.destroy();
-    } catch { expect(true).toBe(true); }
+    const cb = vi.fn();
+    const agg = new DataAggregator(cb, [{ id: 0, key: "temp", agg: "AVG" }, { id: 1, key: "hum", agg: "MAX" }], false, createSubsTw() as any, createUtils() as any, false);
+    agg.onData({ 0: [{ ts: 100, value: 10 }, { ts: 200, value: 20 }], 1: [{ ts: 100, value: 30 }, { ts: 200, value: 50 }] } as any, false, false, true);
+    expect(cb).toHaveBeenCalled();
+    agg.destroy();
   });
 
   it("isLatestDataAgg=true", () => {
-    try {
-      const cb = vi.fn();
-      const agg = new DataAggregator(cb, [{ id: 0, key: "temp", agg: "AVG" }], true, createSubsTw() as any, createUtils() as any, false);
-      agg.onData({ 0: [{ ts: 500, value: 10 }] } as any, false, false, true);
-      expect(cb).toHaveBeenCalled();
-      agg.destroy();
-    } catch { expect(true).toBe(true); }
+    const cb = vi.fn();
+    const agg = new DataAggregator(cb, [{ id: 0, key: "temp", agg: "AVG" }], true, createSubsTw() as any, createUtils() as any, false);
+    agg.onData({ 0: [{ ts: 500, value: 10 }] } as any, false, false, true);
+    expect(cb).toHaveBeenCalled();
+    agg.destroy();
   });
 
   it("destroy clears state", () => {
-    try {
-      const cb = vi.fn();
-      const agg = new DataAggregator(cb, [{ id: 0, key: "temp", agg: "AVG" }], false, createSubsTw() as any, createUtils() as any, false);
-      agg.onData({ 0: [{ ts: 500, value: 10 }] } as any, false, false, true);
-      agg.destroy();
-      try { agg.onData({ 0: [{ ts: 600, value: 20 }] } as any, true, false, true); } catch {}
-      expect(true).toBe(true);
-    } catch { expect(true).toBe(true); }
+    const cb = vi.fn();
+    const agg = new DataAggregator(cb, [{ id: 0, key: "temp", agg: "AVG" }], false, createSubsTw() as any, createUtils() as any, false);
+    agg.onData({ 0: [{ ts: 500, value: 10 }] } as any, false, false, true);
+    agg.destroy();
+    try { agg.onData({ 0: [{ ts: 600, value: 20 }] } as any, true, false, true); } catch {}
+    expect(true).toBe(true);
   });
 });
 
