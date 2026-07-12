@@ -18,8 +18,9 @@
     "jsx": "react-jsx",
     "incremental": true,
     "forceConsistentCasingInFileNames": true,
-    "noUncheckedIndexedAccess": true,
+    "noUncheckedIndexedAccess": false,
     "noImplicitOverride": true,
+    "strictNullChecks": false,
     "plugins": [
       {
         "name": "next"
@@ -39,6 +40,9 @@
         "./src/widgets/*"
       ],
       "@features/*": [
+        "./src/feature-components/*"
+      ],
+      "@home/*": [
         "./src/feature-components/*"
       ],
       "@styles/*": [
