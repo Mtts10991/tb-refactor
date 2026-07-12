@@ -11,6 +11,8 @@
  * การแยก pure functions ออกมาช่วยให้ v8 coverage นับได้โดยตรง
  */
 
+import { Observable } from "rxjs";
+
 // ============================================================
 // AGGREGATION FUNCTIONS (from data-aggregator.ts)
 // ============================================================
@@ -876,4 +878,278 @@ export function aggregationMapToData(
     }
   }
   return result;
+}
+
+// ============================================================
+// WIDGET SUBSCRIPTION: getFirstEntityInfo logic (from widget-subscription.ts)
+// ============================================================
+
+/**
+ * ดึง entity info แรกจาก subscription ตาม type
+ * parity กับ WidgetSubscription.getFirstEntityInfo()
+ */
+export function getFirstEntityInfoFromSubscription(
+  type: string,
+  rpcTarget: any,
+  alarmSource: any,
+  alarms: any,
+  datasources: any[],
+): { entityId: any; entityName: string; entityLabel: string; entityDescription: string } | null {
+  if (type === "rpc") {
+    if (rpcTarget?.entityId) {
+      return {
+        entityId: rpcTarget.entityId,
+        entityName: rpcTarget.entityName || "",
+        entityLabel: rpcTarget.entityName || "",
+        entityDescription: "",
+      };
+    }
+  } else if (type === "alarm") {
+    if (alarmSource?.entityType && alarmSource?.entityId) {
+      return {
+        entityId: { entityType: alarmSource.entityType, id: alarmSource.entityId },
+        entityName: alarmSource.entityName || "",
+        entityLabel: alarmSource.entityLabel || "",
+        entityDescription: alarmSource.entityDescription || "",
+      };
+    } else if (alarms?.data?.length) {
+      const data = alarms.data[0];
+      let entityDescription = "";
+      if (data.latest?.ENTITY_FIELD?.additionalInfo?.value) {
+        try {
+          const additionalInfo = JSON.parse(data.latest.ENTITY_FIELD.additionalInfo.value);
+          if (additionalInfo?.description) {
+            entityDescription = additionalInfo.description;
+          }
+        } catch { /* ignore */ }
+      }
+      return {
+        entityId: data.originator,
+        entityName: data.originatorName || "",
+        entityLabel: data.originatorLabel || "",
+        entityDescription,
+      };
+    }
+  } else {
+    for (const ds of datasources || []) {
+      if (ds?.entityType && ds?.entityId) {
+        return {
+          entityId: { entityType: ds.entityType, id: ds.entityId },
+          entityName: ds.entityName || "",
+          entityLabel: ds.entityLabel || "",
+          entityDescription: ds.entityDescription || "",
+        };
+      }
+    }
+  }
+  return null;
+}
+
+// ============================================================
+// WIDGET SUBSCRIPTION: onAliasesChanged/onFiltersChanged logic
+// ============================================================
+
+/**
+ * ตรวจสอบว่า alias change ส่งผลต่อ subscription หรือไม่
+ */
+export function shouldUpdateOnAliasChange(
+  type: string,
+  aliasIds: string[],
+  targetDeviceAliasId: string | undefined,
+  alarmSourceAliasId: string | undefined,
+  datasourceAliasIds: string[],
+): boolean {
+  if (type === "rpc") {
+    return targetDeviceAliasId ? aliasIds.includes(targetDeviceAliasId) : false;
+  } else if (type === "alarm") {
+    return alarmSourceAliasId ? aliasIds.includes(alarmSourceAliasId) : false;
+  } else {
+    return aliasIds.some(id => datasourceAliasIds.includes(id));
+  }
+}
+
+/**
+ * ตรวจสอบว่า filter change ส่งผลต่อ subscription หรือไม่
+ */
+export function shouldUpdateOnFilterChange(
+  type: string,
+  filterIds: string[],
+  alarmSourceFilterIds: string[],
+  datasourceFilterIds: string[],
+): boolean {
+  if (type === "rpc") return false;
+  if (type === "alarm") {
+    return filterIds.some(id => alarmSourceFilterIds.includes(id));
+  } else {
+    return filterIds.some(id => datasourceFilterIds.includes(id));
+  }
+}
+
+// ============================================================
+// WIDGET SUBSCRIPTION: configureLoadedData logic
+// ============================================================
+
+/**
+ * สร้าง legend config จาก datasources
+ */
+export function configureLegendFromDatasources(
+  datasources: any[],
+  legendConfig: any,
+): { keys: string[]; data: any[] } {
+  const keys: string[] = [];
+  const data: any[] = [];
+  if (!legendConfig) return { keys, data };
+  for (const ds of datasources || []) {
+    if (ds.dataKeys) {
+      for (const key of ds.dataKeys) {
+        if (key.settings?.showInLegend !== false) {
+          keys.push(key.label || key.name);
+          data.push({ min: null, max: null, avg: null, total: null, latest: null });
+        }
+      }
+    }
+  }
+  return { keys, data };
+}
+
+/**
+ * แปลง entity data เป็น datasource data
+ */
+export function entityDataToDatasourceDataImpl(
+  entityData: any,
+  dataKeys: any[],
+  datasources: any[],
+  datasourceIndex: number,
+): { datasourceData: any; latestData: any } {
+  const datasourceData: Record<string, any[]> = {};
+  const latestData: Record<string, any> = {};
+  if (!entityData || !dataKeys) return { datasourceData, latestData };
+
+  const entityId = entityData.entityId;
+  for (const key of dataKeys) {
+    const keyName = key.name;
+    if (key.type === "timeseries") {
+      if (entityData.timeseries && entityData.timeseries[keyName]) {
+        datasourceData[keyName] = entityData.timeseries[keyName].map((point: any) => ({
+          ts: point.ts,
+          value: convertValue(String(point.value)),
+        }));
+      } else {
+        datasourceData[keyName] = [];
+      }
+    } else if (key.type === "attribute" || key.type === "entityField") {
+      if (entityData.latest) {
+        const latestType = key.type === "attribute" ? "ATTRIBUTE" : "ENTITY_FIELD";
+        const latestValues = entityData.latest[latestType];
+        if (latestValues && latestValues[keyName]) {
+          latestData[keyName] = convertValue(String(latestValues[keyName].value));
+        }
+      }
+    }
+  }
+
+  return { datasourceData, latestData };
+}
+
+// ============================================================
+// ENTITY SERVICE: getEntityObservable dispatch logic
+// ============================================================
+
+/**
+ * สร้าง dispatch table สำหรับ getEntity
+ */
+export function buildGetEntityDispatchTable(): Record<string, { service: string; method: string }> {
+  return {
+    DEVICE: { service: "deviceService", method: "getDevice" },
+    ASSET: { service: "assetService", method: "getAsset" },
+    TENANT: { service: "tenantService", method: "getTenant" },
+    CUSTOMER: { service: "customerService", method: "getCustomer" },
+    USER: { service: "userService", method: "getUser" },
+    EDGE: { service: "edgeService", method: "getEdge" },
+    ENTITY_VIEW: { service: "entityViewService", method: "getEntityView" },
+    RULE_CHAIN: { service: "ruleChainService", method: "getRuleChain" },
+    DASHBOARD: { service: "dashboardService", method: "getDashboard" },
+  };
+}
+
+/**
+ * สร้าง dispatch table สำหรับ saveEntity
+ */
+export function buildSaveEntityDispatchTable(): Record<string, { service: string; method: string }> {
+  return {
+    DEVICE: { service: "deviceService", method: "saveDevice" },
+    ASSET: { service: "assetService", method: "saveAsset" },
+    TENANT: { service: "tenantService", method: "saveTenant" },
+    CUSTOMER: { service: "customerService", method: "saveCustomer" },
+    USER: { service: "userService", method: "saveUser" },
+    EDGE: { service: "edgeService", method: "saveEdge" },
+    ENTITY_VIEW: { service: "entityViewService", method: "saveEntityView" },
+    RULE_CHAIN: { service: "ruleChainService", method: "saveRuleChain" },
+    DASHBOARD: { service: "dashboardService", method: "saveDashboard" },
+  };
+}
+
+/**
+ * สร้าง dispatch table สำหรับ deleteEntity
+ */
+export function buildDeleteEntityDispatchTable(): Record<string, { service: string; method: string }> {
+  return {
+    DEVICE: { service: "deviceService", method: "deleteDevice" },
+    ASSET: { service: "assetService", method: "deleteAsset" },
+    TENANT: { service: "tenantService", method: "deleteTenant" },
+    CUSTOMER: { service: "customerService", method: "deleteCustomer" },
+    USER: { service: "userService", method: "deleteUser" },
+    EDGE: { service: "edgeService", method: "deleteEdge" },
+    ENTITY_VIEW: { service: "entityViewService", method: "deleteEntityView" },
+    RULE_CHAIN: { service: "ruleChainService", method: "deleteRuleChain" },
+    DASHBOARD: { service: "dashboardService", method: "deleteDashboard" },
+  };
+}
+
+/**
+ * Dispatch getEntity call ผ่าน service map
+ */
+export function dispatchGetEntity(
+  entityType: string,
+  entityId: string,
+  services: Record<string, any>,
+): Observable<any> | null {
+  const table = buildGetEntityDispatchTable();
+  const entry = table[entityType];
+  if (!entry) return null;
+  const service = services[entry.service];
+  if (!service || typeof service[entry.method] !== "function") return null;
+  return service[entry.method](entityId);
+}
+
+/**
+ * Dispatch saveEntity call ผ่าน service map
+ */
+export function dispatchSaveEntity(
+  entityType: string,
+  entity: any,
+  services: Record<string, any>,
+): Observable<any> | null {
+  const table = buildSaveEntityDispatchTable();
+  const entry = table[entityType];
+  if (!entry) return null;
+  const service = services[entry.service];
+  if (!service || typeof service[entry.method] !== "function") return null;
+  return service[entry.method](entity);
+}
+
+/**
+ * Dispatch deleteEntity call ผ่าน service map
+ */
+export function dispatchDeleteEntity(
+  entityType: string,
+  entityId: string,
+  services: Record<string, any>,
+): Observable<any> | null {
+  const table = buildDeleteEntityDispatchTable();
+  const entry = table[entityType];
+  if (!entry) return null;
+  const service = services[entry.service];
+  if (!service || typeof service[entry.method] !== "function") return null;
+  return service[entry.method](entityId);
 }

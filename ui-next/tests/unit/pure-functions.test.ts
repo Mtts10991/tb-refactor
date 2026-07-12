@@ -803,3 +803,188 @@ describe("aggregationMapToData", () => {
     expect(result.temp).toBeUndefined();
   });
 });
+
+// ============================================================
+// getFirstEntityInfoFromSubscription
+// ============================================================
+import { getFirstEntityInfoFromSubscription } from "../../src/core/pure-functions";
+
+describe("getFirstEntityInfoFromSubscription", () => {
+  it("rpc type returns target entity", () => {
+    const result = getFirstEntityInfoFromSubscription("rpc", { entityId: { entityType: "DEVICE", id: "d1" }, entityName: "Dev" }, null, null, []);
+    expect(result?.entityId.id).toBe("d1");
+    expect(result?.entityName).toBe("Dev");
+  });
+  it("rpc type returns null when no target", () => {
+    expect(getFirstEntityInfoFromSubscription("rpc", null, null, null, [])).toBeNull();
+  });
+  it("alarm type returns from alarmSource", () => {
+    const result = getFirstEntityInfoFromSubscription("alarm", null, { entityType: "DEVICE", entityId: "d1", entityName: "Dev" }, null, []);
+    expect(result?.entityId.id).toBe("d1");
+  });
+  it("alarm type returns from alarms data", () => {
+    const result = getFirstEntityInfoFromSubscription("alarm", null, null, { data: [{ originator: { entityType: "DEVICE", id: "d1" }, originatorName: "Dev" }] }, []);
+    expect(result?.entityName).toBe("Dev");
+  });
+  it("alarm type parses additionalInfo for description", () => {
+    const result = getFirstEntityInfoFromSubscription("alarm", null, null, {
+      data: [{
+        originator: { entityType: "DEVICE", id: "d1" }, originatorName: "Dev",
+        latest: { ENTITY_FIELD: { additionalInfo: { value: '{"description":"Test desc"}' } } },
+      }],
+    }, []);
+    expect(result?.entityDescription).toBe("Test desc");
+  });
+  it("timeseries type returns from datasources", () => {
+    const result = getFirstEntityInfoFromSubscription("timeseries", null, null, null, [{ entityType: "DEVICE", entityId: "d1", entityName: "Dev" }]);
+    expect(result?.entityId.id).toBe("d1");
+  });
+  it("timeseries type returns null for empty datasources", () => {
+    expect(getFirstEntityInfoFromSubscription("timeseries", null, null, null, [])).toBeNull();
+  });
+  it("timeseries type skips datasources without entityId", () => {
+    expect(getFirstEntityInfoFromSubscription("timeseries", null, null, null, [{ type: "function" }])).toBeNull();
+  });
+});
+
+// ============================================================
+// shouldUpdateOnAliasChange + shouldUpdateOnFilterChange
+// ============================================================
+import { shouldUpdateOnAliasChange, shouldUpdateOnFilterChange } from "../../src/core/pure-functions";
+
+describe("shouldUpdateOnAliasChange", () => {
+  it("rpc type checks targetDeviceAliasId", () => {
+    expect(shouldUpdateOnAliasChange("rpc", ["alias1"], "alias1", undefined, [])).toBe(true);
+    expect(shouldUpdateOnAliasChange("rpc", ["alias2"], "alias1", undefined, [])).toBe(false);
+  });
+  it("alarm type checks alarmSourceAliasId", () => {
+    expect(shouldUpdateOnAliasChange("alarm", ["alias1"], undefined, "alias1", [])).toBe(true);
+    expect(shouldUpdateOnAliasChange("alarm", ["alias2"], undefined, "alias1", [])).toBe(false);
+  });
+  it("timeseries type checks datasourceAliasIds", () => {
+    expect(shouldUpdateOnAliasChange("timeseries", ["alias1"], undefined, undefined, ["alias1", "alias2"])).toBe(true);
+    expect(shouldUpdateOnAliasChange("timeseries", ["alias3"], undefined, undefined, ["alias1", "alias2"])).toBe(false);
+  });
+});
+
+describe("shouldUpdateOnFilterChange", () => {
+  it("rpc type always returns false", () => {
+    expect(shouldUpdateOnFilterChange("rpc", ["f1"], [], [])).toBe(false);
+  });
+  it("alarm type checks alarmSourceFilterIds", () => {
+    expect(shouldUpdateOnFilterChange("alarm", ["f1"], ["f1"], [])).toBe(true);
+    expect(shouldUpdateOnFilterChange("alarm", ["f2"], ["f1"], [])).toBe(false);
+  });
+  it("timeseries type checks datasourceFilterIds", () => {
+    expect(shouldUpdateOnFilterChange("timeseries", ["f1"], [], ["f1"])).toBe(true);
+  });
+});
+
+// ============================================================
+// configureLegendFromDatasources + entityDataToDatasourceDataImpl
+// ============================================================
+import { configureLegendFromDatasources, entityDataToDatasourceDataImpl } from "../../src/core/pure-functions";
+
+describe("configureLegendFromDatasources", () => {
+  it("builds legend from datasources", () => {
+    const result = configureLegendFromDatasources([{ dataKeys: [{ name: "temp", label: "Temperature" }, { name: "hum", label: "Humidity" }] }], { position: "bottom" });
+    expect(result.keys).toEqual(["Temperature", "Humidity"]);
+    expect(result.data).toHaveLength(2);
+  });
+  it("skips keys with showInLegend=false", () => {
+    const result = configureLegendFromDatasources([{ dataKeys: [{ name: "temp" }, { name: "hidden", settings: { showInLegend: false } }] }], {});
+    expect(result.keys).toEqual(["temp"]);
+  });
+  it("returns empty for null config", () => {
+    expect(configureLegendFromDatasources([], null)).toEqual({ keys: [], data: [] });
+  });
+});
+
+describe("entityDataToDatasourceDataImpl", () => {
+  it("converts timeseries data", () => {
+    const entityData = { entityId: { entityType: "DEVICE", id: "d1" }, timeseries: { temp: [{ ts: 1000, value: "42" }] } };
+    const result = entityDataToDatasourceDataImpl(entityData, [{ name: "temp", type: "timeseries" }], [], 0);
+    expect(result.datasourceData.temp).toEqual([{ ts: 1000, value: 42 }]);
+  });
+  it("converts attribute data to latest", () => {
+    const entityData = { entityId: { entityType: "DEVICE", id: "d1" }, latest: { ATTRIBUTE: { model: { value: "X100" } } } };
+    const result = entityDataToDatasourceDataImpl(entityData, [{ name: "model", type: "attribute" }], [], 0);
+    expect(result.latestData.model).toBe("X100");
+  });
+  it("converts entityField data to latest", () => {
+    const entityData = { entityId: { entityType: "DEVICE", id: "d1" }, latest: { ENTITY_FIELD: { name: { value: "Dev1" } } } };
+    const result = entityDataToDatasourceDataImpl(entityData, [{ name: "name", type: "entityField" }], [], 0);
+    expect(result.latestData.name).toBe("Dev1");
+  });
+  it("handles empty entityData", () => {
+    const result = entityDataToDatasourceDataImpl(null, [], [], 0);
+    expect(result.datasourceData).toEqual({});
+    expect(result.latestData).toEqual({});
+  });
+});
+
+// ============================================================
+// Entity dispatch tables + dispatch functions
+// ============================================================
+import {
+  buildGetEntityDispatchTable, buildSaveEntityDispatchTable, buildDeleteEntityDispatchTable,
+  dispatchGetEntity, dispatchSaveEntity, dispatchDeleteEntity,
+} from "../../src/core/pure-functions";
+
+describe("dispatch tables", () => {
+  it("getEntity table has all 9 types", () => {
+    const table = buildGetEntityDispatchTable();
+    expect(Object.keys(table)).toHaveLength(9);
+    expect(table.DEVICE).toEqual({ service: "deviceService", method: "getDevice" });
+    expect(table.DASHBOARD).toEqual({ service: "dashboardService", method: "getDashboard" });
+  });
+  it("saveEntity table has all 9 types", () => {
+    const table = buildSaveEntityDispatchTable();
+    expect(Object.keys(table)).toHaveLength(9);
+    expect(table.DEVICE).toEqual({ service: "deviceService", method: "saveDevice" });
+  });
+  it("deleteEntity table has all 9 types", () => {
+    const table = buildDeleteEntityDispatchTable();
+    expect(Object.keys(table)).toHaveLength(9);
+    expect(table.DEVICE).toEqual({ service: "deviceService", method: "deleteDevice" });
+  });
+});
+
+describe("dispatchGetEntity", () => {
+  it("dispatches to correct service method", () => {
+    const services = { deviceService: { getDevice: (id: string) => `got:${id}` } };
+    const result = dispatchGetEntity("DEVICE", "d1", services);
+    expect(result).toBe("got:d1");
+  });
+  it("returns null for unknown entity type", () => {
+    expect(dispatchGetEntity("UNKNOWN", "d1", {})).toBeNull();
+  });
+  it("returns null for missing service", () => {
+    expect(dispatchGetEntity("DEVICE", "d1", {})).toBeNull();
+  });
+  it("returns null for missing method", () => {
+    expect(dispatchGetEntity("DEVICE", "d1", { deviceService: {} })).toBeNull();
+  });
+});
+
+describe("dispatchSaveEntity", () => {
+  it("dispatches to correct service method", () => {
+    const services = { deviceService: { saveDevice: (e: any) => `saved:${e.name}` } };
+    const result = dispatchSaveEntity("DEVICE", { name: "Test" }, services);
+    expect(result).toBe("saved:Test");
+  });
+  it("returns null for unknown", () => {
+    expect(dispatchSaveEntity("UNKNOWN", {}, {})).toBeNull();
+  });
+});
+
+describe("dispatchDeleteEntity", () => {
+  it("dispatches to correct service method", () => {
+    const services = { deviceService: { deleteDevice: (id: string) => `deleted:${id}` } };
+    const result = dispatchDeleteEntity("DEVICE", "d1", services);
+    expect(result).toBe("deleted:d1");
+  });
+  it("returns null for unknown", () => {
+    expect(dispatchDeleteEntity("UNKNOWN", "d1", {})).toBeNull();
+  });
+});
