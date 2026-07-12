@@ -1,26 +1,79 @@
-@import "tailwindcss";
+/**
+ * ThingsBoard UI — Global Styles (HeroUI v3 + Tailwind v4)
+ *
+ * Tailwind v4 ใช้ CSS-first config: ไม่มี tailwind.config.ts
+ * ใช้ @theme inline เพื่อ map CSS variables เป็น Tailwind utilities
+ *   เช่น --thingsboard-primary-color -> bg-thingsboard-primary / text-thingsboard-primary
+ *
+ * HeroUI v3.2.2 ใช้ CSS-based integration (ไม่ใช่ Tailwind plugin):
+ *   - @import "@heroui/styles"; ดึง base + components + default theme + utilities
+ *   - การ rebrand ทำโดย override semantic CSS vars ของ HeroUI (--accent, --focus, ...)
+ *   - ไม่มี heroui() theme function ใน v3 (API นั้นเป็นของ HeroUI v2/NextUI)
+ */
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
+/* โหลด ThingsBoard brand tokens ก่อนทุกอย่าง */
+@import "../styles/brand-tokens.css";
 
+/* HeroUI v3 styles: รวม tailwindcss, tw-animate-css, base, components, default theme, utilities
+   หมายเหตุ: @heroui/styles จะ @import "tailwindcss" เองอยู่แล้ว ดังนั้นไม่ต้อง import tailwindcss ซ้ำ */
+@import "@heroui/styles";
+
+/* เปิดใช้งาน dark variant ของ Tailwind v4 — ผูกกับ [data-theme="dark"]
+   สอดคล้องกับ HeroUI convention (เช่นเดียวกับ variables.css ของ HeroUI) */
+@custom-variant dark (&:where([data-theme="dark"], [data-theme="dark"] *));
+
+/**
+ * Map brand tokens เป็น Tailwind v4 color utilities
+ * ใช้ @theme inline เพื่อให้ค่าอ้างอิง var() (runtime) ไม่ใช่ literal
+ * ทำให้สลับธีมได้ที่ runtime โดยไม่ต้อง rebuild
+ */
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --color-thingsboard-primary: var(--thingsboard-primary-color);
+  --color-thingsboard-secondary: var(--thingsboard-secondary-color);
+  --color-thingsboard-hue-three: var(--thingsboard-hue-three-color);
+  --color-thingsboard-dark-primary: var(--thingsboard-dark-primary-color);
+  --color-thingsboard-primary-light: var(--thingsboard-primary-color-light);
+
+  --font-sans: var(--font-geist-sans), Arial, Helvetica, sans-serif;
+  --font-mono: var(--font-geist-mono), ui-monospace, SFMono-Regular, Menlo, monospace;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+/**
+ * Rebrand HeroUI v3 semantic slots ให้ใช้สี ThingsBoard
+ * HeroUI v3 ไม่มี --primary/--secondary slots; สีหลักของ components ผูกกับ --accent
+ * (ดู node_modules/@heroui/styles/.../themes/default/variables.css)
+ *
+ * ระวัง: HeroUI คำนวณ *-hover และ *-soft ด้วย color-mix(in oklab, var(--accent) ...)
+ *   การตั้งค่าเป็น hex ที่นี่ใช้ได้เพราะ color-mix รับค่าสีใด ๆ ก็ตาม
+ *
+ * Slot mapping (parity กับ heroui-theme.ts ดั้งเดิมใน plan):
+ *   primary  (#305680) -> --accent       (ปุ่มหลัก, links, active)
+ *   secondary(#527dad) -> ไม่มี slot ตรงใน HeroUI v3; เข้าถึงผ่าน Tailwind utility
+ *                          bg-thingsboard-secondary แทน
+ *   focus    (#a7c1de) -> --focus        (focus ring)
+ *   dark:
+ *     primary (#9fa8da) -> --accent
+ */
+:root,
+.light,
+.default,
+[data-theme="light"],
+[data-theme="default"] {
+  --accent: var(--thingsboard-primary-color);
+  --accent-foreground: var(--snow, #ffffff);
+  --focus: var(--thingsboard-hue-three-color);
 }
 
+.dark,
+[data-theme="dark"] {
+  --accent: var(--thingsboard-primary-color);
+  --accent-foreground: var(--snow, #ffffff);
+  --focus: var(--thingsboard-hue-three-color);
+}
+
+html,
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  max-width: 100vw;
+  overflow-x: hidden;
+  font-family: var(--font-sans), Arial, Helvetica, sans-serif;
 }
