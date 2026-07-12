@@ -25,7 +25,7 @@
 | Phase | ชื่อ | สถานะ | Progress |
 |---|---|---|---|
 | 0 | Foundation & Tooling | 🟢 เสร็จ | 6/6 |
-| 1 | Core Service Layer (RxJS port) | 🟡 กำลังทำ | 4/9 |
+| 1 | Core Service Layer (RxJS port) | 🟢 เสร็จ | 9/9 |
 | 2 | Shared Library & Design System | ⬜ ยังไม่เริ่ม | 0/8 |
 | 3 | App Shell, Auth & Device Blueprint | ⬜ ยังไม่เริ่ม | 0/4 |
 | 4 | Entity CRUD Pages (24 resolvers) | ⬜ ยังไม่เริ่ม | 0/5 |
@@ -570,3 +570,4 @@
 | 2026-07-12 | สร้างไฟล์ — ร่าง phase 0-7 พร้อม sub-phase และ acceptance criteria |
 | 2026-07-12 | 🟢 Phase 0 เสร็จสมบูรณ์ — ทุก acceptance criteria ผ่าน (Tailwind v4 + next-intl v4 deviations จากแผนเดิม ตามความจำเป็นจริงของ dependencies) |
 | 2026-07-12 | 🟡 Phase 1 progress 4/9 sub-phases — models + http-utils + 41 services + WebSocket port เสร็จ (0 tsc errors ใน services + websocket) |
+| 2026-07-12 | 🟢 Phase 1 เสร็จสมบูรณ์ 9/9 sub-phases — AuthService + interceptor chain + widget subscription + store slices + translate adapter port ครบ |
