@@ -44,3 +44,8 @@ next-env.d.ts
 
 # Maven (Java build)
 *.class
+
+# IDE/tool artifacts (ไม่ใช่ source code)
+.playwright-mcp/
+.understand-anything/
+.zcode/
