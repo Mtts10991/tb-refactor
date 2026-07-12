@@ -594,3 +594,286 @@ export function csvRowToEntityData(headers: string[], values: string[]): Record<
   }
   return result;
 }
+
+// ============================================================
+// WIDGET SUBSCRIPTION PURE LOGIC (from widget-subscription.ts)
+// ============================================================
+
+/**
+ * อัปเดต latest data ใน datasources
+ * parity กับ onLatestDataUpdated
+ */
+export function updateLatestData(
+  datasources: any[],
+  data: Record<string, any[]>,
+  latestData: Record<string, any>,
+): void {
+  if (!datasources || !data) return;
+  for (const datasource of datasources) {
+    if (datasource.dataKeys) {
+      for (const key of datasource.dataKeys) {
+        if (key.type === "attribute" || key.type === "entityField") {
+          const keyName = key.name;
+          if (data[keyName] && data[keyName].length > 0) {
+            const latestValue = data[keyName][data[keyName].length - 1];
+            if (!latestData[datasource.entityId?.id]) {
+              latestData[datasource.entityId?.id] = {};
+            }
+            latestData[datasource.entityId.id][keyName] = latestValue.value;
+          }
+        }
+      }
+    }
+  }
+}
+
+/**
+ * คำนวณ legend data จาก subscription data
+ */
+export function calculateLegendData(
+  data: Record<string, any[]>,
+  legendConfig: any,
+): { min: number[]; max: number[]; avg: number[]; total: number[]; latest: number[] } {
+  const keys = Object.keys(data);
+  const result = {
+    min: new Array(keys.length).fill(null),
+    max: new Array(keys.length).fill(null),
+    avg: new Array(keys.length).fill(null),
+    total: new Array(keys.length).fill(null),
+    latest: new Array(keys.length).fill(null),
+  };
+  keys.forEach((key, index) => {
+    const values = data[key];
+    if (values && values.length > 0) {
+      const nums = values.map(v => typeof v.value === "number" ? v.value : null).filter(v => v !== null) as number[];
+      if (nums.length > 0) {
+        if (legendConfig?.showMin) result.min[index] = Math.min(...nums);
+        if (legendConfig?.showMax) result.max[index] = Math.max(...nums);
+        if (legendConfig?.showAvg) result.avg[index] = nums.reduce((a, b) => a + b, 0) / nums.length;
+        if (legendConfig?.showTotal) result.total[index] = nums.reduce((a, b) => a + b, 0);
+        if (legendConfig?.showLatest) result.latest[index] = nums[nums.length - 1];
+      }
+    }
+  });
+  return result;
+}
+
+/**
+ * ตรวจสอบว่า RPC target device ถูกต้องหรือไม่
+ */
+export function checkRpcTargetValid(
+  targetDevice: any,
+  resolvedEntity: any,
+): { valid: boolean; reason?: string } {
+  if (!targetDevice) {
+    return { valid: false, reason: "target-device-is-not-set" };
+  }
+  if (!resolvedEntity) {
+    return { valid: false, reason: "failed-to-resolve-target-device" };
+  }
+  if (resolvedEntity.entityType !== "DEVICE") {
+    return { valid: false, reason: "invalid-target-entity" };
+  }
+  return { valid: true };
+}
+
+/**
+ * ตรวจสอบ alarm source filters
+ */
+export function checkAlarmSourceValid(
+  alarmSource: any,
+  resolvedSource: any,
+): { valid: boolean; reason?: string } {
+  if (!alarmSource) {
+    return { valid: false, reason: "alarm-source-not-set" };
+  }
+  if (!resolvedSource) {
+    return { valid: false, reason: "failed-to-resolve-alarm-source" };
+  }
+  return { valid: true };
+}
+
+// ============================================================
+// ENTITY SERVICE PURE LOGIC (from entity.service.ts)
+// ============================================================
+
+/**
+ * สร้าง entity filter types ตาม entity types ที่รองรับ
+ */
+export function getAliasFilterTypesForEntityTypes(entityTypes: string[]): string[] {
+  const allFilterTypes = [
+    { type: "singleEntity", supported: ["DEVICE", "ASSET", "TENANT", "CUSTOMER", "USER", "EDGE", "ENTITY_VIEW", "DASHBOARD", "RULE_CHAIN"] },
+    { type: "entityList", supported: ["DEVICE", "ASSET", "TENANT", "CUSTOMER", "USER", "EDGE", "ENTITY_VIEW", "DASHBOARD", "RULE_CHAIN"] },
+    { type: "entityName", supported: ["DEVICE", "ASSET", "TENANT", "CUSTOMER", "USER", "EDGE", "ENTITY_VIEW", "DASHBOARD", "RULE_CHAIN"] },
+    { type: "entityType", supported: ["DEVICE", "ASSET", "TENANT", "CUSTOMER", "USER", "EDGE", "ENTITY_VIEW"] },
+    { type: "apiUsageState", supported: ["CUSTOMER", "TENANT"] },
+    { type: "relationsQuery", supported: ["DEVICE", "ASSET", "TENANT", "CUSTOMER", "USER", "EDGE", "ENTITY_VIEW", "DASHBOARD", "RULE_CHAIN"] },
+    { type: "assetSearchQuery", supported: ["DEVICE", "EDGE"] },
+    { type: "deviceSearchQuery", supported: ["ASSET", "EDGE"] },
+    { type: "entityViewSearchQuery", supported: ["DEVICE", "ASSET", "EDGE"] },
+    { type: "edgeSearchQuery", supported: ["DEVICE", "ASSET", "ENTITY_VIEW"] },
+  ];
+  return allFilterTypes
+    .filter(ft => entityTypes.some(et => ft.supported.includes(et)))
+    .map(ft => ft.type);
+}
+
+/**
+ * กรอง alias ตาม entity types
+ */
+export function filterAliasByEntityTypesImpl(
+  entityAlias: any,
+  entityTypes: string[],
+): boolean {
+  if (!entityAlias || !entityAlias.filter) {
+    return false;
+  }
+  const filter = entityAlias.filter;
+  if (filter.singleEntity) {
+    return entityTypes.includes(filter.singleEntity.entityType);
+  }
+  if (filter.entityList) {
+    return entityTypes.includes(filter.entityList.entityType);
+  }
+  if (filter.entityName) {
+    return entityTypes.includes(filter.entityName.entityType);
+  }
+  if (filter.entityType) {
+    return entityTypes.includes(filter.entityType);
+  }
+  return true;
+}
+
+/**
+ * เตรียม allowed entity types list
+ */
+export function prepareAllowedEntityTypesImpl(
+  allowedEntityTypes: string[],
+  isTenantAdmin: boolean,
+): string[] {
+  if (!allowedEntityTypes || !allowedEntityTypes.length) {
+    if (isTenantAdmin) {
+      return ["DEVICE", "ASSET", "ENTITY_VIEW", "TENANT", "CUSTOMER", "EDGE", "DASHBOARD", "RULE_CHAIN"];
+    } else {
+      return ["DEVICE", "ASSET", "ENTITY_VIEW"];
+    }
+  }
+  return allowedEntityTypes;
+}
+
+// ============================================================
+// DATA AGGREGATOR PURE LOGIC (from data-aggregator.ts)
+// ============================================================
+
+/**
+ * คำนวณ aggregation interval สำหรับ timestamp
+ */
+export function calculateAggInterval(
+  startTs: number,
+  endTs: number,
+  timestamp: number,
+  aggType: string,
+): [number, number] {
+  if (aggType === "NONE") {
+    return [timestamp, timestamp];
+  }
+  const interval = endTs - startTs;
+  if (interval <= 0) {
+    return [startTs, endTs];
+  }
+  const tsOffset = timestamp - startTs;
+  const intervalIndex = Math.floor(tsOffset / interval);
+  const intervalStart = startTs + intervalIndex * interval;
+  const intervalEnd = intervalStart + interval;
+  return [intervalStart, Math.min(intervalEnd, endTs)];
+}
+
+/**
+ * อัปเดต aggregated data ด้วยค่าใหม่
+ */
+export function updateAggregatedData(
+  aggData: AggData,
+  value: number,
+  aggType: string,
+): void {
+  const fn = getAggFunction(aggType);
+  fn(aggData, value);
+}
+
+/**
+ * ประมวลผล aggregated data จาก raw data
+ */
+export function processAggregatedData(
+  data: Record<string, any[]>,
+  tsKeys: Array<{ id: number; key: string; agg: string }>,
+  startTs: number,
+  endTs: number,
+): Map<number, Map<number, AggData>> {
+  const result = new Map<number, Map<number, AggData>>();
+  if (!data) return result;
+
+  for (const tsKey of tsKeys) {
+    const values = data[tsKey.key];
+    if (!values || !values.length) continue;
+
+    if (!result.has(tsKey.id)) {
+      result.set(tsKey.id, new Map());
+    }
+    const keyMap = result.get(tsKey.id)!;
+
+    for (const point of values) {
+      const ts = point.ts;
+      const interval = calculateAggInterval(startTs, endTs, ts, tsKey.agg);
+      const intervalTs = interval[0] + Math.floor((interval[1] - interval[0]) / 2);
+
+      if (!keyMap.has(intervalTs)) {
+        keyMap.set(intervalTs, createEmptyAggData(intervalTs, interval));
+      }
+      const aggData = keyMap.get(intervalTs)!;
+      updateAggregatedData(aggData, point.value, tsKey.agg);
+    }
+  }
+  return result;
+}
+
+/**
+ * อัปเดตข้อมูลสุดท้ายใน interval
+ */
+export function updateLastInterval(
+  aggregationMap: Map<number, Map<number, AggData>>,
+  startTs: number,
+  endTs: number,
+): void {
+  if (!aggregationMap) return;
+  for (const [, keyMap] of aggregationMap) {
+    for (const [ts, aggData] of keyMap) {
+      if (ts >= endTs) {
+        // Move to last interval
+        const interval = calculateAggInterval(startTs, endTs, ts, "AVG");
+        aggData.interval = interval;
+      }
+    }
+  }
+}
+
+/**
+ * แปลง aggregation map เป็น output data
+ */
+export function aggregationMapToData(
+  aggregationMap: Map<number, Map<number, AggData>>,
+  tsKeys: Array<{ id: number; key: string }>,
+): Record<string, Array<{ ts: number; value: number | null }>> {
+  const result: Record<string, Array<{ ts: number; value: number | null }>> = {};
+  for (const tsKey of tsKeys) {
+    const keyMap = aggregationMap.get(tsKey.id);
+    if (keyMap) {
+      const data: Array<{ ts: number; value: number | null }> = [];
+      for (const [ts, aggData] of keyMap) {
+        data.push({ ts, value: aggData.aggValue });
+      }
+      data.sort((a, b) => a.ts - b.ts);
+      result[tsKey.key] = data;
+    }
+  }
+  return result;
+}

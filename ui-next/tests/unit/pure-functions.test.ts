@@ -556,3 +556,250 @@ describe("csvRowToEntityData", () => {
     expect(result.extra).toBeUndefined();
   });
 });
+
+// ============================================================
+// WIDGET SUBSCRIPTION PURE LOGIC
+// ============================================================
+import {
+  updateLatestData, calculateLegendData, checkRpcTargetValid, checkAlarmSourceValid,
+} from "../../src/core/pure-functions";
+
+describe("updateLatestData", () => {
+  it("อัปเดต latest data จาก attribute/entityField keys", () => {
+    const datasources = [{
+      entityId: { id: "d1" },
+      dataKeys: [{ name: "model", type: "attribute" }],
+    }];
+    const data = { model: [{ ts: 1000, value: "X100" }] };
+    const latestData: Record<string, any> = {};
+    updateLatestData(datasources, data, latestData);
+    expect(latestData.d1.model).toBe("X100");
+  });
+  it("ignores timeseries keys", () => {
+    const datasources = [{
+      entityId: { id: "d1" },
+      dataKeys: [{ name: "temp", type: "timeseries" }],
+    }];
+    const data = { temp: [{ ts: 1000, value: 42 }] };
+    const latestData: Record<string, any> = {};
+    updateLatestData(datasources, data, latestData);
+    expect(latestData.d1).toBeUndefined();
+  });
+  it("handles null inputs", () => {
+    expect(() => updateLatestData(null, null, {})).not.toThrow();
+  });
+});
+
+describe("calculateLegendData", () => {
+  it("คำนวณ min/max/avg/total/latest", () => {
+    const data = { temp: [{ value: 10 }, { value: 20 }, { value: 30 }] };
+    const result = calculateLegendData(data, { showMin: true, showMax: true, showAvg: true, showTotal: true, showLatest: true });
+    expect(result.min[0]).toBe(10);
+    expect(result.max[0]).toBe(30);
+    expect(result.avg[0]).toBe(20);
+    expect(result.total[0]).toBe(60);
+    expect(result.latest[0]).toBe(30);
+  });
+  it("returns null arrays when no data", () => {
+    const result = calculateLegendData({}, { showMin: true });
+    expect(result.min).toEqual([]);
+  });
+  it("handles null values in data", () => {
+    const data = { temp: [{ value: "abc" }, { value: 10 }] };
+    const result = calculateLegendData(data, { showMin: true, showMax: true });
+    expect(result.min[0]).toBe(10);
+    expect(result.max[0]).toBe(10);
+  });
+});
+
+describe("checkRpcTargetValid", () => {
+  it("invalid when no target device", () => {
+    expect(checkRpcTargetValid(null, null).valid).toBe(false);
+    expect(checkRpcTargetValid(null, null).reason).toBe("target-device-is-not-set");
+  });
+  it("invalid when no resolved entity", () => {
+    expect(checkRpcTargetValid({ entityAliasId: "a1" }, null).valid).toBe(false);
+    expect(checkRpcTargetValid({ entityAliasId: "a1" }, null).reason).toBe("failed-to-resolve-target-device");
+  });
+  it("invalid when entity is not DEVICE", () => {
+    expect(checkRpcTargetValid({ entityAliasId: "a1" }, { entityType: "ASSET" }).valid).toBe(false);
+    expect(checkRpcTargetValid({ entityAliasId: "a1" }, { entityType: "ASSET" }).reason).toBe("invalid-target-entity");
+  });
+  it("valid when entity is DEVICE", () => {
+    expect(checkRpcTargetValid({ entityAliasId: "a1" }, { entityType: "DEVICE" }).valid).toBe(true);
+  });
+});
+
+describe("checkAlarmSourceValid", () => {
+  it("invalid when no alarm source", () => {
+    expect(checkAlarmSourceValid(null, null).valid).toBe(false);
+    expect(checkAlarmSourceValid(null, null).reason).toBe("alarm-source-not-set");
+  });
+  it("invalid when no resolved source", () => {
+    expect(checkAlarmSourceValid({ dataKeys: [] }, null).valid).toBe(false);
+  });
+  it("valid when resolved", () => {
+    expect(checkAlarmSourceValid({ dataKeys: [] }, { type: "entity" }).valid).toBe(true);
+  });
+});
+
+// ============================================================
+// ENTITY SERVICE PURE LOGIC
+// ============================================================
+import {
+  getAliasFilterTypesForEntityTypes, filterAliasByEntityTypesImpl, prepareAllowedEntityTypesImpl,
+} from "../../src/core/pure-functions";
+
+describe("getAliasFilterTypesForEntityTypes", () => {
+  it("returns filter types for DEVICE", () => {
+    const result = getAliasFilterTypesForEntityTypes(["DEVICE"]);
+    expect(result).toContain("singleEntity");
+    expect(result).toContain("entityList");
+    expect(result).toContain("entityName");
+    expect(result).toContain("assetSearchQuery");
+  });
+  it("returns filter types for CUSTOMER", () => {
+    const result = getAliasFilterTypesForEntityTypes(["CUSTOMER"]);
+    expect(result).toContain("apiUsageState");
+  });
+  it("returns empty for unknown type", () => {
+    const result = getAliasFilterTypesForEntityTypes(["UNKNOWN"]);
+    expect(result).toEqual([]);
+  });
+});
+
+describe("filterAliasByEntityTypesImpl", () => {
+  it("true when singleEntity matches", () => {
+    const alias = { filter: { singleEntity: { entityType: "DEVICE" } } };
+    expect(filterAliasByEntityTypesImpl(alias, ["DEVICE"])).toBe(true);
+  });
+  it("false when singleEntity doesn't match", () => {
+    const alias = { filter: { singleEntity: { entityType: "DEVICE" } } };
+    expect(filterAliasByEntityTypesImpl(alias, ["ASSET"])).toBe(false);
+  });
+  it("true when entityList matches", () => {
+    const alias = { filter: { entityList: { entityType: "ASSET" } } };
+    expect(filterAliasByEntityTypesImpl(alias, ["ASSET"])).toBe(true);
+  });
+  it("false when no filter", () => {
+    expect(filterAliasByEntityTypesImpl({}, ["DEVICE"])).toBe(false);
+    expect(filterAliasByEntityTypesImpl(null, ["DEVICE"])).toBe(false);
+  });
+  it("true for generic filters (entityType)", () => {
+    const alias = { filter: { entityType: "DEVICE" } };
+    expect(filterAliasByEntityTypesImpl(alias, ["DEVICE"])).toBe(true);
+  });
+});
+
+describe("prepareAllowedEntityTypesImpl", () => {
+  it("returns default for tenant admin", () => {
+    const result = prepareAllowedEntityTypesImpl([], true);
+    expect(result).toContain("DEVICE");
+    expect(result).toContain("TENANT");
+    expect(result).toContain("CUSTOMER");
+  });
+  it("returns default for customer user", () => {
+    const result = prepareAllowedEntityTypesImpl([], false);
+    expect(result).toContain("DEVICE");
+    expect(result).toContain("ASSET");
+    expect(result).toContain("ENTITY_VIEW");
+    expect(result).not.toContain("TENANT");
+  });
+  it("returns provided types", () => {
+    const result = prepareAllowedEntityTypesImpl(["DEVICE", "ASSET"], true);
+    expect(result).toEqual(["DEVICE", "ASSET"]);
+  });
+});
+
+// ============================================================
+// DATA AGGREGATOR PURE LOGIC
+// ============================================================
+import {
+  calculateAggInterval, updateAggregatedData, processAggregatedData,
+  updateLastInterval, aggregationMapToData,
+} from "../../src/core/pure-functions";
+
+describe("calculateAggInterval", () => {
+  it("NONE type returns [ts, ts]", () => {
+    expect(calculateAggInterval(0, 10000, 5000, "NONE")).toEqual([5000, 5000]);
+  });
+  it("AVG type calculates interval", () => {
+    const result = calculateAggInterval(0, 10000, 3000, "AVG");
+    expect(result[0]).toBeLessThanOrEqual(3000);
+    expect(result[1]).toBeGreaterThan(3000);
+  });
+  it("handles timestamp at start", () => {
+    const result = calculateAggInterval(0, 10000, 0, "AVG");
+    expect(result[0]).toBe(0);
+  });
+  it("handles negative interval", () => {
+    const result = calculateAggInterval(10000, 0, 5000, "AVG");
+    expect(result).toEqual([10000, 0]);
+  });
+});
+
+describe("updateAggregatedData", () => {
+  it("updates with AVG function", () => {
+    const agg = createEmptyAggData(1000, [0, 2000]);
+    updateAggregatedData(agg, 10, "AVG");
+    updateAggregatedData(agg, 20, "AVG");
+    expect(agg.aggValue).toBe(15);
+    expect(agg.count).toBe(2);
+  });
+  it("updates with MIN function", () => {
+    const agg = createEmptyAggData(1000, [0, 2000]);
+    updateAggregatedData(agg, 30, "MIN");
+    updateAggregatedData(agg, 10, "MIN");
+    expect(agg.aggValue).toBe(10);
+  });
+  it("updates with COUNT function", () => {
+    const agg = createEmptyAggData(1000, [0, 2000]);
+    updateAggregatedData(agg, 10, "COUNT");
+    updateAggregatedData(agg, 20, "COUNT");
+    expect(agg.aggValue).toBe(2);
+  });
+});
+
+describe("processAggregatedData", () => {
+  it("processes raw data into aggregation map", () => {
+    const data = { temp: [{ ts: 500, value: 10 }, { ts: 1500, value: 20 }] };
+    const tsKeys = [{ id: 0, key: "temp", agg: "AVG" }];
+    const result = processAggregatedData(data, tsKeys, 0, 2000);
+    expect(result.size).toBe(1);
+    expect(result.get(0)!.size).toBeGreaterThan(0);
+  });
+  it("handles empty data", () => {
+    const result = processAggregatedData({}, [], 0, 1000);
+    expect(result.size).toBe(0);
+  });
+  it("handles null data", () => {
+    const result = processAggregatedData(null as any, [], 0, 1000);
+    expect(result.size).toBe(0);
+  });
+});
+
+describe("updateLastInterval", () => {
+  it("does not throw for empty map", () => {
+    expect(() => updateLastInterval(new Map(), 0, 1000)).not.toThrow();
+  });
+  it("does not throw for null", () => {
+    expect(() => updateLastInterval(null as any, 0, 1000)).not.toThrow();
+  });
+});
+
+describe("aggregationMapToData", () => {
+  it("converts map to output data", () => {
+    const aggMap = new Map<number, Map<number, AggData>>();
+    const keyMap = new Map<number, AggData>();
+    const agg = createEmptyAggData(1000, [0, 2000]);
+    agg.aggValue = 42;
+    keyMap.set(1000, agg);
+    aggMap.set(0, keyMap);
+    const result = aggregationMapToData(aggMap, [{ id: 0, key: "temp" }]);
+    expect(result.temp).toEqual([{ ts: 1000, value: 42 }]);
+  });
+  it("returns empty for missing keys", () => {
+    const result = aggregationMapToData(new Map(), [{ id: 0, key: "temp" }]);
+    expect(result.temp).toBeUndefined();
+  });
+});
