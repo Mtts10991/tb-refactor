@@ -290,3 +290,269 @@ describe("errorCodeToTranslationKey", () => {
     expect(errorCodeToTranslationKey(999)).toBeUndefined();
   });
 });
+
+// ============================================================
+// ENTITY DATA SUBSCRIPTION HELPERS
+// ============================================================
+import {
+  convertValue, isNumericString, buildEntityKeys, keyTypeToKeyType,
+  createFunctionPageData, calculateComparisonValue,
+} from "../../src/core/pure-functions";
+
+describe("convertValue", () => {
+  it("แปลง numeric string เป็น number", () => {
+    expect(convertValue("42")).toBe(42);
+    expect(convertValue("3.14")).toBe(3.14);
+    expect(convertValue("0")).toBe(0);
+  });
+  it("คืน string เดิม สำหรับ non-numeric", () => {
+    expect(convertValue("hello")).toBe("hello");
+    expect(convertValue("12abc")).toBe("12abc");
+  });
+  it("คืน falsy value เดิม", () => {
+    expect(convertValue("")).toBe("");
+    expect(convertValue(null as any)).toBe(null);
+  });
+});
+
+describe("isNumericString", () => {
+  it("true สำหรับ numeric strings", () => {
+    expect(isNumericString("42")).toBe(true);
+    expect(isNumericString("3.14")).toBe(true);
+    expect(isNumericString("-5")).toBe(true);
+  });
+  it("false สำหรับ non-numeric", () => {
+    expect(isNumericString("hello")).toBe(false);
+    expect(isNumericString("")).toBe(false);
+    expect(isNumericString("12px")).toBe(false);
+  });
+  it("false สำหรับ non-string", () => {
+    expect(isNumericString(42 as any)).toBe(false);
+    expect(isNumericString(null as any)).toBe(false);
+  });
+});
+
+describe("buildEntityKeys", () => {
+  it("filter + map dataKeys ตาม type", () => {
+    const keys = [
+      { name: "temp", type: "timeseries" },
+      { name: "name", type: "entityField" },
+      { name: "model", type: "attribute" },
+    ];
+    const result = buildEntityKeys(keys, "timeseries");
+    expect(result).toEqual([{ type: "TIME_SERIES", key: "temp" }]);
+  });
+  it("empty array", () => {
+    expect(buildEntityKeys([], "timeseries")).toEqual([]);
+  });
+  it("null input", () => {
+    expect(buildEntityKeys(null as any, "timeseries")).toEqual([]);
+  });
+});
+
+describe("keyTypeToKeyType", () => {
+  it("timeseries → TIME_SERIES", () => { expect(keyTypeToKeyType("timeseries")).toBe("TIME_SERIES"); });
+  it("attribute → ATTRIBUTE", () => { expect(keyTypeToKeyType("attribute")).toBe("ATTRIBUTE"); });
+  it("entityField → ENTITY_FIELD", () => { expect(keyTypeToKeyType("entityField")).toBe("ENTITY_FIELD"); });
+  it("alarm → ALARM_FIELD", () => { expect(keyTypeToKeyType("alarm")).toBe("ALARM_FIELD"); });
+  it("unknown → uppercase", () => { expect(keyTypeToKeyType("custom")).toBe("CUSTOM"); });
+});
+
+describe("createFunctionPageData", () => {
+  it("สร้าง page data สำหรับ function datasource", () => {
+    const result = createFunctionPageData([{ name: "temp" }], { page: 0, pageSize: 10 });
+    expect(result.data).toHaveLength(1);
+    expect(result.data[0].entityId.entityType).toBe("FUNCTION");
+    expect(result.totalPages).toBe(1);
+    expect(result.totalElements).toBe(1);
+    expect(result.hasNext).toBe(false);
+  });
+});
+
+describe("calculateComparisonValue", () => {
+  it("PREVIOUS_VALUE คืน previous", () => {
+    expect(calculateComparisonValue(30, 20, "PREVIOUS_VALUE")).toBe(20);
+  });
+  it("DELTA_ABSOLUTE คืน current - previous", () => {
+    expect(calculateComparisonValue(30, 20, "DELTA_ABSOLUTE")).toBe(10);
+  });
+  it("DELTA_PERCENT คืน percentage", () => {
+    expect(calculateComparisonValue(30, 20, "DELTA_PERCENT")).toBe(50);
+  });
+  it("DELTA_PERCENT with zero previous คืน 0", () => {
+    expect(calculateComparisonValue(30, 0, "DELTA_PERCENT")).toBe(0);
+  });
+  it("default คืน delta absolute", () => {
+    expect(calculateComparisonValue(30, 20, "UNKNOWN")).toBe(10);
+  });
+});
+
+// ============================================================
+// ALIAS CONTROLLER HELPERS
+// ============================================================
+import {
+  setDatasourceNames, hasAliasChanged, hasFilterChanged, createDatasourceKey,
+} from "../../src/core/pure-functions";
+
+describe("setDatasourceNames", () => {
+  it("function type: ตั้งชื่อ + entityId", () => {
+    const ds = { type: "function", name: "MyFunc" };
+    const result = setDatasourceNames(ds, 0, 0, 0);
+    expect(result.datasource.name).toBe("MyFunc");
+    expect(result.datasource.aliasName).toBe("MyFunc");
+    expect(result.datasource.entityId.entityType).toBe("FUNCTION");
+    expect(result.functionIndex).toBe(1);
+  });
+  it("function type without name: ใช้ 'function'", () => {
+    const ds = { type: "function" };
+    const result = setDatasourceNames(ds, 0, 0, 0);
+    expect(result.datasource.name).toBe("function");
+  });
+  it("entityCount type: ตั้ง entityId", () => {
+    const ds = { type: "entityCount" };
+    const result = setDatasourceNames(ds, 0, 0, 0);
+    expect(result.datasource.entityId.entityType).toBe("COUNT");
+    expect(result.entityCountIndex).toBe(1);
+  });
+  it("alarmCount type: ตั้ง entityId", () => {
+    const ds = { type: "alarmCount" };
+    const result = setDatasourceNames(ds, 0, 0, 0);
+    expect(result.datasource.entityId.entityType).toBe("ALARM_COUNT");
+    expect(result.alarmCountIndex).toBe(1);
+  });
+  it("entity type: ไม่เปลี่ยนแปลง", () => {
+    const ds = { type: "entity", entityId: { entityType: "DEVICE", id: "d1" } };
+    const result = setDatasourceNames(ds, 0, 0, 0);
+    expect(result.functionIndex).toBe(0);
+    expect(result.entityCountIndex).toBe(0);
+    expect(result.alarmCountIndex).toBe(0);
+  });
+});
+
+describe("hasAliasChanged", () => {
+  it("true เมื่อ prevAlias เป็น null", () => {
+    expect(hasAliasChanged({ id: "1" }, null)).toBe(true);
+  });
+  it("true เมื่อเปลี่ยนแปลง", () => {
+    expect(hasAliasChanged({ id: "1" }, { id: "2" })).toBe(true);
+  });
+  it("false เมื่อเหมือนกัน", () => {
+    expect(hasAliasChanged({ id: "1" }, { id: "1" })).toBe(false);
+  });
+});
+
+describe("hasFilterChanged", () => {
+  it("true เมื่อ prevFilter เป็น null", () => {
+    expect(hasFilterChanged({ type: "A" }, null)).toBe(true);
+  });
+  it("true เมื่อเปลี่ยนแปลง", () => {
+    expect(hasFilterChanged({ type: "A" }, { type: "B" })).toBe(true);
+  });
+  it("false เมื่อเหมือนกัน", () => {
+    expect(hasFilterChanged({ type: "A" }, { type: "A" })).toBe(false);
+  });
+});
+
+describe("createDatasourceKey", () => {
+  it("สร้าง key จาก entityAliasId", () => {
+    expect(createDatasourceKey({ entityAliasId: "alias1" })).toBe("alias:alias1");
+  });
+  it("สร้าง key จาก entityId", () => {
+    expect(createDatasourceKey({ entityId: { entityType: "DEVICE", id: "d1" } })).toBe("entity:DEVICE:d1");
+  });
+  it("สร้าง key จาก type", () => {
+    expect(createDatasourceKey({ type: "function" })).toBe("type:function");
+  });
+  it("สร้าง key รวมหลาย parts", () => {
+    expect(createDatasourceKey({ entityAliasId: "a1", type: "entity" })).toBe("alias:a1|type:entity");
+  });
+  it("empty string for null", () => {
+    expect(createDatasourceKey(null)).toBe("");
+  });
+});
+
+// ============================================================
+// ENTITY SERVICE HELPERS
+// ============================================================
+import {
+  entityTypeToPluralUrl, entityTypeToSingularUrl,
+  entityToCsvRow, parseCsvLine, csvRowToEntityData,
+} from "../../src/core/pure-functions";
+
+describe("entityTypeToPluralUrl", () => {
+  it("DEVICE → devices", () => { expect(entityTypeToPluralUrl("DEVICE")).toBe("devices"); });
+  it("ASSET → assets", () => { expect(entityTypeToPluralUrl("ASSET")).toBe("assets"); });
+  it("ENTITY_VIEW → entityViews", () => { expect(entityTypeToPluralUrl("ENTITY_VIEW")).toBe("entityViews"); });
+  it("RULE_CHAIN → ruleChains", () => { expect(entityTypeToPluralUrl("RULE_CHAIN")).toBe("ruleChains"); });
+  it("UNKNOWN → unknowns", () => { expect(entityTypeToPluralUrl("UNKNOWN")).toBe("unknowns"); });
+});
+
+describe("entityTypeToSingularUrl", () => {
+  it("DEVICE → device", () => { expect(entityTypeToSingularUrl("DEVICE")).toBe("device"); });
+  it("ENTITY_VIEW → entityView", () => { expect(entityTypeToSingularUrl("ENTITY_VIEW")).toBe("entityView"); });
+  it("RULE_CHAIN → ruleChain", () => { expect(entityTypeToSingularUrl("RULE_CHAIN")).toBe("ruleChain"); });
+  it("UNKNOWN → unknown", () => { expect(entityTypeToSingularUrl("UNKNOWN")).toBe("unknown"); });
+});
+
+describe("entityToCsvRow", () => {
+  it("แปลง entity เป็น CSV row", () => {
+    const row = entityToCsvRow({ name: "Test", type: "default", value: 42 }, ["name", "type", "value"]);
+    expect(row).toBe("Test,default,42");
+  });
+  it("quote values ที่มี comma", () => {
+    const row = entityToCsvRow({ name: "Test,Inc" }, ["name"]);
+    expect(row).toBe('"Test,Inc"');
+  });
+  it("quote values ที่มี quote", () => {
+    const row = entityToCsvRow({ name: 'Test"Inc' }, ["name"]);
+    expect(row).toBe('"Test""Inc"');
+  });
+  it("empty string สำหรับ null/undefined values", () => {
+    const row = entityToCsvRow({ name: "Test", desc: null }, ["name", "desc"]);
+    expect(row).toBe("Test,");
+  });
+  it("JSON stringify สำหรับ object values", () => {
+    const row = entityToCsvRow({ config: { key: "val" } }, ["config"]);
+    expect(row).toBe('"{""key"":""val""}"');
+  });
+  it("empty string for null entity", () => {
+    expect(entityToCsvRow(null, ["name"])).toBe("");
+  });
+});
+
+describe("parseCsvLine", () => {
+  it("parse simple CSV line", () => {
+    expect(parseCsvLine("a,b,c")).toEqual(["a", "b", "c"]);
+  });
+  it("parse CSV with quoted values", () => {
+    expect(parseCsvLine('"a,b",c')).toEqual(["a,b", "c"]);
+  });
+  it("parse CSV with escaped quotes", () => {
+    expect(parseCsvLine('"a""b",c')).toEqual(['a"b', "c"]);
+  });
+  it("parse empty line", () => {
+    expect(parseCsvLine("")).toEqual([]);
+  });
+  it("parse single value", () => {
+    expect(parseCsvLine("hello")).toEqual(["hello"]);
+  });
+});
+
+describe("csvRowToEntityData", () => {
+  it("แปลง CSV row เป็น entity data object", () => {
+    const result = csvRowToEntityData(["name", "value"], ["TestDevice", "42"]);
+    expect(result.name).toBe("TestDevice");
+    expect(result.value).toBe(42);
+  });
+  it("ignores empty values", () => {
+    const result = csvRowToEntityData(["name", "value"], ["Test", ""]);
+    expect(result.name).toBe("Test");
+    expect(result.value).toBeUndefined();
+  });
+  it("handles mismatched lengths", () => {
+    const result = csvRowToEntityData(["name", "value", "extra"], ["Test", "42"]);
+    expect(result.name).toBe("Test");
+    expect(result.value).toBe(42);
+    expect(result.extra).toBeUndefined();
+  });
+});
