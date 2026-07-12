@@ -988,3 +988,219 @@ describe("dispatchDeleteEntity", () => {
     expect(dispatchDeleteEntity("UNKNOWN", "d1", {})).toBeNull();
   });
 });
+
+// ============================================================
+// processDataUpdated helpers
+// ============================================================
+import {
+  calculateDataIndex, shouldUpdateLatestData, isDataKeyHidden,
+} from "../../src/core/pure-functions";
+
+describe("calculateDataIndex", () => {
+  it("calculates index from datasource + dataKey indices", () => {
+    const ds = { dataKeyStartIndex: 5, dataKeys: [{}, {}, {}] };
+    expect(calculateDataIndex(ds, 0, 1, 2)).toBe(5 + 1 * 3 + 2);
+  });
+  it("returns -1 for null datasource", () => {
+    expect(calculateDataIndex(null, 0, 0, 0)).toBe(-1);
+  });
+  it("handles missing dataKeyStartIndex", () => {
+    const ds = { dataKeys: [{}, {}] };
+    expect(calculateDataIndex(ds, 0, 0, 1)).toBe(1);
+  });
+});
+
+describe("shouldUpdateLatestData", () => {
+  it("true for non-latest type", () => {
+    expect(shouldUpdateLatestData("timeseries", [], [])).toBe(true);
+  });
+  it("false when both empty (latest)", () => {
+    expect(shouldUpdateLatestData("latest", [], [])).toBe(false);
+  });
+  it("false when same ts + value", () => {
+    expect(shouldUpdateLatestData("latest", [[1000, 42]], [[1000, 42]])).toBe(false);
+  });
+  it("true when different value", () => {
+    expect(shouldUpdateLatestData("latest", [[1000, 42]], [[1000, 43]])).toBe(true);
+  });
+  it("true when NOT_SUPPORTED value", () => {
+    expect(shouldUpdateLatestData("latest", [[1000, 42]], [[1000, "NOT_SUPPORTED"]])).toBe(true);
+  });
+});
+
+describe("isDataKeyHidden", () => {
+  it("true when dataKey.hidden is true", () => {
+    const keys = [{ dataIndex: 3, dataKey: { hidden: true } }];
+    expect(isDataKeyHidden(keys, 3)).toBe(true);
+  });
+  it("false when dataKey.hidden is false", () => {
+    const keys = [{ dataIndex: 3, dataKey: { hidden: false } }];
+    expect(isDataKeyHidden(keys, 3)).toBe(false);
+  });
+  it("false for empty legend keys", () => {
+    expect(isDataKeyHidden([], 3)).toBe(false);
+  });
+  it("false for null legend keys", () => {
+    expect(isDataKeyHidden(null as any, 3)).toBe(false);
+  });
+});
+
+// ============================================================
+// configureLoadedData helpers
+// ============================================================
+import {
+  createLegendKey, createLegendKeyData, assignDataKeyColors, updateComparisonColors,
+} from "../../src/core/pure-functions";
+
+describe("createLegendKey", () => {
+  it("creates legend key with custom decimals/units", () => {
+    const key = createLegendKey({ name: "temp", decimals: 3, units: "°C" }, 5, 2, "");
+    expect(key.dataIndex).toBe(5);
+    expect(key.valueFormat.decimals).toBe(3);
+    expect(key.valueFormat.units).toBe("°C");
+  });
+  it("uses default decimals/units when not set", () => {
+    const key = createLegendKey({ name: "temp" }, 0, 2, "%");
+    expect(key.valueFormat.decimals).toBe(2);
+    expect(key.valueFormat.units).toBe("%");
+  });
+});
+
+describe("createLegendKeyData", () => {
+  it("creates empty legend key data", () => {
+    const data = createLegendKeyData();
+    expect(data.min).toBeNull();
+    expect(data.max).toBeNull();
+    expect(data.hidden).toBe(false);
+  });
+});
+
+describe("assignDataKeyColors", () => {
+  it("assigns colors to generated datasources", () => {
+    const colors = ["red", "green", "blue"];
+    const datasources = [{ generated: true, dataKeys: [{}, {}] }, { dataKeys: [{}] }];
+    assignDataKeyColors(datasources, (i) => colors[i]);
+    expect(datasources[0].dataKeys[0].color).toBe("red");
+    expect(datasources[0].dataKeys[1].color).toBe("green");
+    expect(datasources[1].dataKeys[0].color).toBeUndefined();
+  });
+  it("handles null datasources", () => {
+    expect(() => assignDataKeyColors(null, () => "red")).not.toThrow();
+  });
+});
+
+describe("updateComparisonColors", () => {
+  it("updates comparison colors for additional datasources", () => {
+    const origDs = { dataKeys: [{ settings: { comparisonSettings: {} } }] };
+    const addDs = {
+      isAdditional: true, origDatasourceIndex: 0,
+      dataKeys: [{ settings: { comparisonSettings: { color: "red" } }, origDataKeyIndex: 0 }],
+    };
+    const pages = [{ data: [origDs, addDs] }];
+    updateComparisonColors(pages);
+    expect(origDs.dataKeys[0].settings.comparisonSettings.color).toBe("red");
+  });
+  it("handles null pages", () => {
+    expect(() => updateComparisonColors(null)).not.toThrow();
+  });
+  it("handles pages without data", () => {
+    expect(() => updateComparisonColors([{}])).not.toThrow();
+  });
+});
+
+// ============================================================
+// Entity dispatch (plural) + URL builders
+// ============================================================
+import {
+  dispatchGetEntities, buildGetEntitiesByIdsUrl, buildGetEntitiesByNameFilterUrl,
+} from "../../src/core/pure-functions";
+
+describe("dispatchGetEntities", () => {
+  it("dispatches to plural method", () => {
+    const services = { deviceService: { getDevices: (ids: string[]) => ids.length } };
+    expect(dispatchGetEntities("DEVICE", ["d1", "d2"], services)).toBe(2);
+  });
+  it("returns null for unknown", () => {
+    expect(dispatchGetEntities("UNKNOWN", [], {})).toBeNull();
+  });
+});
+
+describe("buildGetEntitiesByIdsUrl", () => {
+  it("builds URL for DEVICE", () => {
+    expect(buildGetEntitiesByIdsUrl("DEVICE", ["d1", "d2"])).toBe("/api/devices?deviceIds=d1,d2");
+  });
+  it("builds URL for ASSET", () => {
+    expect(buildGetEntitiesByIdsUrl("ASSET", ["a1"])).toBe("/api/assets?assetIds=a1");
+  });
+});
+
+describe("buildGetEntitiesByNameFilterUrl", () => {
+  it("builds URL with encoded name", () => {
+    expect(buildGetEntitiesByNameFilterUrl("DEVICE", "Test Device")).toBe("/api/tenant/devices?deviceNames=Test%20Device");
+  });
+});
+
+// ============================================================
+// EntityDataSubscription helpers
+// ============================================================
+import {
+  processEntityDataUpdate, buildEntityDataCmd, buildEntityCountCmd,
+} from "../../src/core/pure-functions";
+
+describe("processEntityDataUpdate", () => {
+  it("processes initial data (not update)", () => {
+    const update = { data: [{ timeseries: { temp: [{ ts: 1000, value: "42" }] } }] };
+    const result = processEntityDataUpdate(update, [{ name: "temp" }], {});
+    expect(result.data.temp).toEqual([{ ts: 1000, value: 42 }]);
+    expect(result.isUpdate).toBe(false);
+  });
+  it("appends data for update mode", () => {
+    const update = { update: true, data: [{ timeseries: { temp: [{ ts: 2000, value: "43" }] } }] };
+    const existing = { temp: [{ ts: 1000, value: 42 }] };
+    const result = processEntityDataUpdate(update, [{ name: "temp" }], existing);
+    expect(result.data.temp).toHaveLength(2);
+    expect(result.isUpdate).toBe(true);
+  });
+  it("handles null update", () => {
+    const result = processEntityDataUpdate(null, [], { temp: [] });
+    expect(result.data.temp).toEqual([]);
+    expect(result.isUpdate).toBe(false);
+  });
+});
+
+describe("buildEntityDataCmd", () => {
+  it("builds command with all fields", () => {
+    const cmd = buildEntityDataCmd(
+      [{ type: "ENTITY_FIELD", key: "name" }],
+      [{ type: "ATTRIBUTE", key: "model" }],
+      [{ type: "TIME_SERIES", key: "temp" }],
+      { page: 0, pageSize: 100 },
+      [{ key: "temp", valueType: "STRING", value: "42", predicate: { type: "STRING", operation: "EQUAL", ignoreCase: false } }],
+      true,
+    );
+    expect(cmd.entityFields).toHaveLength(1);
+    expect(cmd.latestValues).toHaveLength(1);
+    expect(cmd.tsFields).toHaveLength(1);
+    expect(cmd.pageLink.pageSize).toBe(100);
+    expect(cmd.keyFilters).toHaveLength(1);
+    expect(cmd.isPaginatedDataSubscription).toBe(true);
+  });
+  it("builds minimal command", () => {
+    const cmd = buildEntityDataCmd([], [], [], null, [], false);
+    expect(cmd.entityFields).toEqual([]);
+    expect(cmd.tsFields).toBeUndefined();
+    expect(cmd.isPaginatedDataSubscription).toBeUndefined();
+  });
+});
+
+describe("buildEntityCountCmd", () => {
+  it("builds count command", () => {
+    const cmd = buildEntityCountCmd({ type: "singleEntity" }, [{ key: "test" }]);
+    expect(cmd.entityFilter.type).toBe("singleEntity");
+    expect(cmd.keyFilters).toHaveLength(1);
+  });
+  it("builds with empty keyFilters", () => {
+    const cmd = buildEntityCountCmd({ type: "entityList" }, []);
+    expect(cmd.keyFilters).toEqual([]);
+  });
+});

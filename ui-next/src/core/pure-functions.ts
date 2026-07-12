@@ -1153,3 +1153,252 @@ export function dispatchDeleteEntity(
   if (!service || typeof service[entry.method] !== "function") return null;
   return service[entry.method](entityId);
 }
+
+// ============================================================
+// WIDGET SUBSCRIPTION: processDataUpdated logic
+// ============================================================
+
+/**
+ * คำนวณ data index จาก datasource/dataKey indices
+ */
+export function calculateDataIndex(
+  configuredDatasource: any,
+  datasourceIndex: number,
+  dataIndex: number,
+  dataKeyIndex: number,
+): number {
+  if (!configuredDatasource) return -1;
+  const startIndex = configuredDatasource.dataKeyStartIndex || 0;
+  const dataKeysCount = configuredDatasource.dataKeys?.length || 0;
+  return startIndex + dataIndex * dataKeysCount + dataKeyIndex;
+}
+
+/**
+ * ตรวจสอบว่า latest data update ควรส่งผลหรือไม่
+ */
+export function shouldUpdateLatestData(
+  type: string,
+  prevData: any[],
+  newData: any[],
+): boolean {
+  if (type !== "latest") return true;
+  if (!newData.length && !prevData.length) return false;
+  if (prevData?.[0] && prevData[0].length > 1 && newData.length > 0) {
+    const prevTs = prevData[0][0];
+    const prevValue = prevData[0][1];
+    if (prevTs === newData[0][0] && prevValue === newData[0][1] && newData[0][1] !== "NOT_SUPPORTED") {
+      return false;
+    }
+  }
+  return true;
+}
+
+/**
+ * ตรวจสอบว่า data key ถูกซ่อนใน legend หรือไม่
+ */
+export function isDataKeyHidden(
+  legendKeys: any[],
+  dataIndex: number,
+): boolean {
+  if (!legendKeys || !legendKeys.length) return false;
+  const key = legendKeys.find(k => k.dataIndex === dataIndex);
+  return key?.dataKey?.hidden === true;
+}
+
+// ============================================================
+// WIDGET SUBSCRIPTION: configureLoadedData logic
+// ============================================================
+
+/**
+ * สร้าง legend key จาก dataKey + settings
+ */
+export function createLegendKey(
+  dataKey: any,
+  dataIndex: number,
+  defaultDecimals: number,
+  defaultUnits: string,
+): any {
+  const decimals = dataKey.decimals != null ? dataKey.decimals : defaultDecimals;
+  const units = dataKey.units || defaultUnits;
+  return {
+    dataKey,
+    dataIndex,
+    valueFormat: { decimals, units },
+  };
+}
+
+/**
+ * สร้าง legend key data (empty state)
+ */
+export function createLegendKeyData(): any {
+  return { min: null, max: null, avg: null, total: null, latest: null, hidden: false };
+}
+
+/**
+ * กำหนดสีให้ dataKey สำหรับ generated/additional datasources
+ */
+export function assignDataKeyColors(
+  datasources: any[],
+  getMaterialColor: (index: number) => string,
+): void {
+  let index = 0;
+  for (const ds of datasources || []) {
+    if (ds.dataKeys) {
+      for (const key of ds.dataKeys) {
+        if (ds.generated || ds.isAdditional) {
+          key.color = getMaterialColor(index);
+        }
+        index++;
+      }
+    }
+  }
+}
+
+/**
+ * อัปเดต comparison colors สำหรับ additional datasources
+ */
+export function updateComparisonColors(
+  datasourcePages: any[],
+): void {
+  if (!datasourcePages) return;
+  for (const page of datasourcePages) {
+    if (!page?.data) continue;
+    for (let dIndex = 0; dIndex < page.data.length; dIndex++) {
+      const ds = page.data[dIndex];
+      if (ds?.isAdditional && ds.origDatasourceIndex != null) {
+        const origDs = page.data[ds.origDatasourceIndex];
+        if (!origDs) continue;
+        for (const key of ds.dataKeys || []) {
+          if (key.settings?.comparisonSettings?.color) {
+            key.color = key.settings.comparisonSettings.color;
+          }
+          if (key.origDataKeyIndex != null && origDs.dataKeys?.[key.origDataKeyIndex]) {
+            origDs.dataKeys[key.origDataKeyIndex].settings =
+              origDs.dataKeys[key.origDataKeyIndex].settings || {};
+            origDs.dataKeys[key.origDataKeyIndex].settings.comparisonSettings =
+              origDs.dataKeys[key.origDataKeyIndex].settings.comparisonSettings || {};
+            origDs.dataKeys[key.origDataKeyIndex].settings.comparisonSettings.color = key.color;
+          }
+        }
+      }
+    }
+  }
+}
+
+// ============================================================
+// ENTITY SERVICE: getEntitiesObservable dispatch
+// ============================================================
+
+/**
+ * Dispatch getEntities call (plural) ผ่าน service map
+ */
+export function dispatchGetEntities(
+  entityType: string,
+  entityIds: string[],
+  services: Record<string, any>,
+): Observable<any> | null {
+  const table = buildGetEntityDispatchTable();
+  const entry = table[entityType];
+  if (!entry) return null;
+  const pluralMethod = entry.method + "s"; // getDevice → getDevices
+  const service = services[entry.service];
+  if (!service || typeof service[pluralMethod] !== "function") return null;
+  return service[pluralMethod](entityIds);
+}
+
+/**
+ * สร้าง URL สำหรับ getEntitiesByIds endpoint
+ */
+export function buildGetEntitiesByIdsUrl(
+  entityType: string,
+  entityIds: string[],
+): string {
+  const plural = entityTypeToPluralUrl(entityType);
+  return `/api/${plural}?${entityTypeToSingularUrl(entityType)}Ids=${entityIds.join(",")}`;
+}
+
+/**
+ * สร้าง URL สำหรับ getEntitiesByNameFilter endpoint
+ */
+export function buildGetEntitiesByNameFilterUrl(
+  entityType: string,
+  nameFilter: string,
+): string {
+  const plural = entityTypeToPluralUrl(entityType);
+  return `/api/tenant/${plural}?${entityTypeToSingularUrl(entityType)}Names=${encodeURIComponent(nameFilter)}`;
+}
+
+// ============================================================
+// ENTITY DATA SUBSCRIPTION: processEntityData logic
+// ============================================================
+
+/**
+ * ประมวลผล EntityDataUpdate message
+ */
+export function processEntityDataUpdate(
+  update: any,
+  dataKeys: any[],
+  existingData: Record<string, any[]>,
+): { data: Record<string, any[]>; isUpdate: boolean } {
+  if (!update) return { data: existingData, isUpdate: false };
+  const result: Record<string, any[]> = { ...existingData };
+  const isUpdate = !!update.update;
+
+  if (update.data && Array.isArray(update.data)) {
+    for (const entityData of update.data) {
+      if (entityData.timeseries) {
+        for (const keyName of Object.keys(entityData.timeseries)) {
+          if (!result[keyName]) result[keyName] = [];
+          const newValues = entityData.timeseries[keyName];
+          if (isUpdate) {
+            result[keyName].push(...newValues.map((v: any) => ({ ts: v.ts, value: convertValue(String(v.value)) })));
+          } else {
+            result[keyName] = newValues.map((v: any) => ({ ts: v.ts, value: convertValue(String(v.value)) }));
+          }
+        }
+      }
+    }
+  }
+  return { data: result, isUpdate };
+}
+
+/**
+ * สร้าง EntityDataCmd จาก subscription config
+ */
+export function buildEntityDataCmd(
+  entityFields: any[],
+  latestValues: any[],
+  tsFields: any[],
+  pageLink: any,
+  keyFilters: any[],
+  isPaginated: boolean,
+): any {
+  const cmd: any = {
+    entityFields: entityFields || [],
+    latestValues: latestValues || [],
+    pageLink: pageLink || { page: 0, pageSize: 1024 },
+  };
+  if (tsFields && tsFields.length) {
+    cmd.tsFields = tsFields;
+  }
+  if (keyFilters && keyFilters.length) {
+    cmd.keyFilters = keyFilters;
+  }
+  if (isPaginated) {
+    cmd.isPaginatedDataSubscription = true;
+  }
+  return cmd;
+}
+
+/**
+ * สร้าง EntityCountCmd
+ */
+export function buildEntityCountCmd(
+  entityFilter: any,
+  keyFilters: any[],
+): any {
+  return {
+    entityFilter,
+    keyFilters: keyFilters || [],
+  };
+}
