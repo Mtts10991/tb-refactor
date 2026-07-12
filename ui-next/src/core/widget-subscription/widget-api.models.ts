@@ -56,10 +56,10 @@ import {
   Filters,
   KeyFilter
 } from '@shared/models/query/query.models';
-import { EntityDataService } from '@core/api/entity-data.service';
+import { EntityDataService } from './entity-data.service';
 import { PageData } from '@shared/models/page/page-data';
 import { TranslateService } from '@ngx-translate/core';
-import { AlarmDataService } from '@core/api/alarm-data.service';
+import { AlarmDataService } from './alarm-data.service';
 import { IDashboardController } from '@home/components/dashboard-page/dashboard-page.models';
 import { PopoverPlacement } from '@shared/components/popover.models';
 import { PersistentRpc } from '@shared/models/rpc.models';

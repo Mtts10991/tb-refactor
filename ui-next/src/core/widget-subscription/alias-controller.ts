@@ -14,7 +14,7 @@
 /// limitations under the License.
 ///
 
-import { AliasInfo, IAliasController, StateControllerHolder, StateEntityInfo } from '@core/api/widget-api.models';
+import { AliasInfo, IAliasController, StateControllerHolder, StateEntityInfo } from './widget-api.models';
 import { forkJoin, Observable, of, ReplaySubject, Subject } from 'rxjs';
 import {
   Datasource,

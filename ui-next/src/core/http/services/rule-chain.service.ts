@@ -38,7 +38,7 @@ import {
   TestScriptInputParams,
   TestScriptResult
 } from '@shared/models/rule-node.models';
-import { componentTypeBySelector, ResourcesService } from '../services/resources.service';
+import { componentTypeBySelector, ResourcesService } from '../../services/resources.service';
 import { catchError, map, mergeMap } from 'rxjs/operators';
 type TranslateService = { instant: (key: string, params?: unknown) => string };
 import { deepClone, snakeCase } from '@core/utils';

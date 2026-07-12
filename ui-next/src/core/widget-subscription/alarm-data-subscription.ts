@@ -29,7 +29,7 @@ import {
   KeyFilter
 } from '@shared/models/query/query.models';
 import { SubscriptionTimewindow } from '@shared/models/time/time.models';
-import { AlarmDataListener } from '@core/api/alarm-data.service';
+import { AlarmDataListener } from './alarm-data.service';
 import { PageData } from '@shared/models/page/page-data';
 import { deepClone, isDefined, isDefinedAndNotNull, isObject } from '@core/utils';
 import { simulatedAlarm } from '@shared/models/alarm.models';

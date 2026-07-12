@@ -21,7 +21,7 @@ import {
   WidgetSubscriptionCallbacks,
   WidgetSubscriptionContext,
   WidgetSubscriptionOptions
-} from '@core/api/widget-api.models';
+} from './widget-api.models';
 import {
   DataKey,
   DataKeySettingsWithComparison,
@@ -72,7 +72,7 @@ import {
 import { EntityId } from '@shared/models/id/entity-id';
 import moment_ from 'moment';
 import { emptyPageData, PageData } from '@shared/models/page/page-data';
-import { EntityDataListener } from '@core/api/entity-data.service';
+import { EntityDataListener } from './entity-data.service';
 import {
   AlarmData,
   AlarmDataPageLink,
@@ -84,7 +84,7 @@ import {
   updateDatasourceFromEntityInfo
 } from '@shared/models/query/query.models';
 import { distinct, filter, map, switchMap, takeUntil } from 'rxjs/operators';
-import { AlarmDataListener } from '@core/api/alarm-data.service';
+import { AlarmDataListener } from './alarm-data.service';
 import { RpcStatus } from '@shared/models/rpc.models';
 /** Stub EventEmitter — parity กับ Angular จะใช้ RxJS Subject ใน Phase 5 */
 class EventEmitter<T> { private listeners: ((v: T) => void)[] = []; emit(v: T) { this.listeners.forEach(l => l(v)); } subscribe(cb: (v: T) => void) { this.listeners.push(cb); return { unsubscribe: () => { this.listeners = this.listeners.filter(l => l !== cb); } }; } }

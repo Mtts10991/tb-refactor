@@ -58,10 +58,10 @@ import {
   TelemetrySubscriber
 } from '@shared/models/telemetry/telemetry.models';
 import { UtilsService } from '@core/services/utils.service';
-import { EntityDataListener, EntityDataLoadResult } from '@core/api/entity-data.service';
+import { EntityDataListener, EntityDataLoadResult } from './entity-data.service';
 import { deepClone, isDefined, isDefinedAndNotNull, isNumeric, isObject, objectHashCode } from '@core/utils';
 import { PageData } from '@shared/models/page/page-data';
-import { DataAggregator, onAggregatedData } from '@core/api/data-aggregator';
+import { DataAggregator, onAggregatedData } from './data-aggregator';
 import { NULL_UUID } from '@shared/models/id/has-uuid';
 import { EntityType } from '@shared/models/entity-type.models';
 import { firstValueFrom, from, Observable, of, ReplaySubject, Subject, Subscription } from 'rxjs';

@@ -50,12 +50,12 @@ import {
   UnreadSubCmd,
   UnsubscribeCmd,
   WebsocketDataMsg
-} from '@app/shared/models/telemetry/telemetry.models';
+} from '@shared/models/telemetry/telemetry.models';
 type Store<T> = { dispatch: (action: unknown) => void; select: (selector: unknown) => { pipe: (...ops: unknown[]) => { subscribe: (cb: (v: unknown) => void) => { unsubscribe: () => void } } } };
 import { AppState } from '@core/core.state';
 import { AuthSession } from '@core/authentication/auth-session';
 import { WINDOW } from '@core/services/window.service';
-import { WebsocketService } from '@core/ws/websocket.service';
+import { WebsocketService } from './websocket.service';
 
 // @dynamic
 export class TelemetryWebsocketService extends WebsocketService<TelemetrySubscriber> {

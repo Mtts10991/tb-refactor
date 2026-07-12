@@ -15,7 +15,7 @@
 ///
 
 /* TODO: stub TranslateService/TranslateLoader/TranslateCompiler — ใช้ next-intl adapter */
-import { customTranslationsPrefix } from '@app/shared/models/constants';
+import { customTranslationsPrefix } from '@shared/models/constants';
 import { Observable } from 'rxjs';
 
 export class TbMissingTranslationHandler implements MissingTranslationHandler {

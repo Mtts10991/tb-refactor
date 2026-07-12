@@ -29,7 +29,7 @@ import {
   TelemetrySubscriber,
   WebsocketDataMsg
 } from '@shared/models/telemetry/telemetry.models';
-import { ActionNotificationShow } from '@core/notification/notification.actions';
+import { ActionNotificationShow } from '../notification/notification.actions';
 import Timeout = NodeJS.Timeout;
 
 const RECONNECT_INTERVAL = 2000;
