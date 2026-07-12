@@ -43,15 +43,17 @@ const vitestConfiguration = defineConfig({
       "src/**/*.test.ts",
       // parity comparator unit test (pure logic, no browser — รันผ่าน vitest)
       "tests/parity/**/*.test.ts",
+      // parity service specs (ใช้ vitest + mock HttpClientCaptor — ไม่ใช้ Playwright)
+      "tests/parity/services-parity.spec.ts",
     ],
-    // หมายเหตุ: tests/parity/**/*.spec.ts เป็น Playwright spec (import จาก
-    // @playwright/test) จึงไม่อยู่ใน vitest include และต้องถูก exclude
-    // เพื่อกัน vitest รันผิดตัว. Playwright specs ทั้งหมดรันผ่าน playwright.config.ts.
+    // หมายเหตุ: tests/parity/parity-smoke.spec.ts เป็น Playwright spec (import จาก
+    // @playwright/test) จึงต้องถูก exclude เพื่อกัน vitest รันผิดตัว.
+    // แต่ services-parity.spec.ts เป็น vitest spec (mock-based ไม่ต้องใช้ browser)
     exclude: [
       "node_modules",
       ".next",
       "tests/end-to-end",
-      "tests/parity/**/*.spec.ts",
+      "tests/parity/parity-smoke.spec.ts",
     ],
     coverage: {
       provider: "v8",

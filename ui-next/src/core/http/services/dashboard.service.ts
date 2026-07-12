@@ -21,7 +21,7 @@ import { Observable } from 'rxjs';
 import { PageLink } from '@shared/models/page/page-link';
 import { PageData } from '@shared/models/page/page-data';
 import { Dashboard, DashboardInfo, HomeDashboard, HomeDashboardInfo } from '@shared/models/dashboard.models';
-import { WINDOW } from '@core/services/window.service';
+/* WINDOW import removed — use global window in Phase 2 */
 /* TODO Phase 1.5: Router logic will be ported to Next.js navigation */
 type Router = { url: string; events: { subscribe: (cb: (e: unknown) => void) => void } };
 import { filter, map, publishReplay, refCount } from 'rxjs/operators';
@@ -34,7 +34,7 @@ export class DashboardService {
 
   constructor(public readonly httpClient: HttpClient,
     private router: Router,
-    @Inject(WINDOW) private window: Window
+    private window: Window
   ) {
     this.currentUrl = this.router.url.split('?')[0];
     this.router.events.pipe(filter(event => event instanceof NavigationEnd)).subscribe(
