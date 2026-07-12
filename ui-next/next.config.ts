@@ -16,6 +16,18 @@
  */
 
 import type { NextConfig } from "next";
+import createNextIntlPlugin from "next-intl/plugin";
+
+/**
+ * next-intl v4 plugin wrapper — บอก Next.js ให้โหลด request config จาก ./i18n/request.ts.
+ * หากไม่ wrap ด้วย wrapper นี้ next-intl จะโยน runtime error:
+ *   "Couldn't find next-intl config file" (เพราะไม่รู้ว่า request config อยู่ที่ไหน)
+ *
+ * @parityEngine Angular
+ * parity กับการที่ Angular ลงทะเบียน TranslateModule.forRoot({ loader }) ใน AppModule
+ *   — คือการเชื่อม runtime loader เข้ากับ framework bootstrap.
+ */
+const withNextIntl = createNextIntlPlugin("./i18n/request.ts");
 
 /**
  * URL ของ ThingsBoard backend — ใน development คือ localhost:8080
@@ -77,4 +89,4 @@ const nextConfig: NextConfig = {
   },
 };
 
-export default nextConfig;
+export default withNextIntl(nextConfig);
