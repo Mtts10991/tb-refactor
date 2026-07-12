@@ -182,10 +182,10 @@ describe("createLoadingIndicatorInterceptor", () => {
     });
 
     await new Promise<void>((resolve) => {
-      const sub = interceptor(createMockRequest("/api/devices"), createSuccessNext()).subscribe({
-        next: () => { sub.unsubscribe(); resolve(); },
-        error: () => { sub.unsubscribe(); resolve(); },
-        complete: () => { setTimeout(resolve, 50); },
+      interceptor(createMockRequest("/api/devices"), createSuccessNext()).subscribe({
+        next: () => resolve(),
+        error: () => resolve(),
+        complete: () => resolve(),
       });
     });
 
