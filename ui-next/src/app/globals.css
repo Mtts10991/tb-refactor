@@ -9,6 +9,15 @@
  *   - @import "@heroui/styles"; ดึง base + components + default theme + utilities
  *   - การ rebrand ทำโดย override semantic CSS vars ของ HeroUI (--accent, --focus, ...)
  *   - ไม่มี heroui() theme function ใน v3 (API นั้นเป็นของ HeroUI v2/NextUI)
+ *
+ * @parityEngine Angular
+ * พอร์ตมาจาก: ui-ngx/src/styles.scss + ui-ngx/src/theme.scss (global styles + Material theme)
+ *
+ * @reason
+ * Tailwind v4 ใช้ CSS-first config แทน tailwind.config.ts (JS config ของ v3) เพื่อ:
+ *   1. ลดไฟล์ config ที่จำเป็น
+ *   2. ใช้ประโยชน์จาก native CSS cascade layers
+ *   3. สอดคล้องกับ HeroUI v3 ที่ใช้ CSS variables เป็น theme system
  */
 
 /* โหลด ThingsBoard brand tokens ก่อนทุกอย่าง */
@@ -64,6 +73,9 @@
   --focus: var(--thingsboard-hue-three-color);
 }
 
+/* Dark theme — ประกาศซ้ำเพื่อความชัดเจน (explicitness)
+   ค่าจริงสลับผ่าน brand-tokens.css ที่ override --thingsboard-primary-color
+   แต่เราเขียนซ้ำที่นี่เพื่อให้อ่านง่ายและทำให้ globals.css เป็น self-documenting */
 .dark,
 [data-theme="dark"] {
   --accent: var(--thingsboard-primary-color);

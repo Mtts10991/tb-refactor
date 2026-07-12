@@ -1,15 +1,22 @@
 /**
- * ThingsBoard Brand Tokens
+ * @fileoverview ThingsBoard Brand Tokens — กำหนดค่าสีหลักของแบรนด์เป็น CSS custom properties
+ * เพื่อให้สลับธีมได้แบบ runtime (เปรียบเทียบกับ $variable ของ SCSS ที่เป็น compile-time).
  *
- * กำหนดค่าสีหลักของแบรนด์ ThingsBoard เป็น CSS custom properties
- * เพื่อให้สลับธีมได้ตาม runtime (เปรียบเทียบกับ $var ของ SCSS ที่เป็น compile-time)
+ * @parityEngine Angular
+ * พอร์ตมาจาก: ui-ngx/src/scss/constants.scss (บรรทัด $tb-primary-color ถึง $tb-primary-color-light)
  *
- * ค่าทั้งหมด parity กับ ui-ngx/src/scss/constants.scss
- *   $tb-primary-color:       #305680
- *   $tb-secondary-color:     #527dad
- *   $tb-hue3-color:          #a7c1de
- *   $tb-dark-primary-color:  #9fa8da
- *   $tb-primary-color-light: #7986cb
+ * @reason
+ * ใช้ CSS variables แทน SCSS variables เพราะ:
+ *   1. HeroUI v3 และ Tailwind v4 อ่านค่าจาก CSS variables ได้โดยตรง
+ *   2. รองรับ dynamic theme switching โดยไม่ต้อง recompile
+ *   3. ลดความซับซ้อนของ build pipeline (ไม่ต้องใช้ SCSS preprocessor)
+ *
+ * ค่าทั้งหมด parity กับ ui-ngx/src/scss/constants.scss byte-for-byte:
+ *   $tb-primary-color:       #305680  →  --thingsboard-primary-color
+ *   $tb-secondary-color:     #527dad  →  --thingsboard-secondary-color
+ *   $tb-hue3-color:          #a7c1de  →  --thingsboard-hue-three-color
+ *   $tb-dark-primary-color:  #9fa8da  →  --thingsboard-dark-primary-color
+ *   $tb-primary-color-light: #7986cb  →  --thingsboard-primary-color-light
  */
 
 :root {
@@ -29,10 +36,10 @@
   --thingsboard-primary-color-light: #7986cb;
 }
 
-/**
- * สีหลักและสีรองในโหมดมืด
- * override ที่ [data-theme="dark"] เพื่อให้สอดคล้องกับระบบธีมของ HeroUI v3
- */
+/* Dark theme overrides — parity กับ .tb-dark class ใน ui-ngx/src/theme.scss
+   Override เฉพาะ primary และ secondary เพราะเป็นสีที่ใช้กับ interactive elements
+   ส่วน hue-three/dark-primary/primary-light เป็น dark-specific tokens อยู่แล้ว
+   (มีคำว่า "dark" หรือ "light" ในชื่อ) จึงไม่ต้อง override ซ้ำ */
 [data-theme="dark"] {
   --thingsboard-primary-color: #9fa8da;
   --thingsboard-secondary-color: #7986cb;
