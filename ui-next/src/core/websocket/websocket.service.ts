@@ -17,7 +17,8 @@
 import { CmdWrapper, WsService, WsSubscriber } from '@shared/models/websocket/websocket.models';
 type Store<T> = { dispatch: (action: unknown) => void; select: (selector: unknown) => { pipe: (...ops: unknown[]) => { subscribe: (cb: (v: unknown) => void) => { unsubscribe: () => void } } } };
 import { AppState } from '@core/core.state';
-import { AuthService } from '@core/auth/auth.service';
+import { AuthSession } from '@core/authentication/auth-session';
+import { getJwtToken, isJwtTokenValid } from '@core/authentication/auth-token-store';
 /* TODO: NgZone — not needed in React */
 import { selectIsAuthenticated } from '@core/auth/auth.selectors';
 import { webSocket, WebSocketSubject } from 'rxjs/webSocket';
@@ -58,7 +59,7 @@ export abstract class WebsocketService<T extends WsSubscriber> implements WsServ
   errorName = 'WebSocket Error';
 
   protected constructor(protected store: Store<AppState>,
-                        protected authService: AuthService,
+                        protected authService: AuthSession,
                         protected ngZone: NgZone,
                         protected apiEndpoint: string,
                         protected cmdWrapper: CmdWrapper,
@@ -141,12 +142,12 @@ export abstract class WebsocketService<T extends WsSubscriber> implements WsServ
     if (this.isActive) {
       if (!this.isOpened && !this.isOpening) {
         this.isOpening = true;
-        if (AuthService.isJwtTokenValid()) {
-          this.openSocket(AuthService.getJwtToken());
+        if (isJwtTokenValid()) {
+          this.openSocket(getJwtToken());
         } else {
           this.authService.refreshJwtToken().subscribe({
             next: () => {
-              this.openSocket(AuthService.getJwtToken());
+              this.openSocket(getJwtToken());
             },
             error: () => {
               this.isOpening = false;

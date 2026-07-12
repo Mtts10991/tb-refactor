@@ -53,7 +53,7 @@ import {
 } from '@app/shared/models/telemetry/telemetry.models';
 type Store<T> = { dispatch: (action: unknown) => void; select: (selector: unknown) => { pipe: (...ops: unknown[]) => { subscribe: (cb: (v: unknown) => void) => { unsubscribe: () => void } } } };
 import { AppState } from '@core/core.state';
-import { AuthService } from '@core/auth/auth.service';
+import { AuthSession } from '@core/authentication/auth-session';
 import { WINDOW } from '@core/services/window.service';
 import { WebsocketService } from '@core/ws/websocket.service';
 
@@ -63,7 +63,7 @@ export class TelemetryWebsocketService extends WebsocketService<TelemetrySubscri
   cmdWrapper: TelemetryPluginCmdsWrapper;
 
   constructor(protected store: Store<AppState>,
-              protected authService: AuthService,
+              protected authService: AuthSession,
               protected ngZone: NgZone,
               @Inject(WINDOW) protected window: Window) {
     super(store, authService, ngZone, 'api/ws', new TelemetryPluginCmdsWrapper(), window);

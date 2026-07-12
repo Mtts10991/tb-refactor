@@ -19,6 +19,7 @@
     "@react-rxjs/core": "^0.10.0",
     "ace-builds": "^1.44.0",
     "framer-motion": "^11.0.0",
+    "jwt-decode": "^4.0.0",
     "moment": "^2.30.1",
     "next": "^16.0.0",
     "next-intl": "^4.4.0",

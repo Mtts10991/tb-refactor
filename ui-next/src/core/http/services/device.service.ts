@@ -32,7 +32,7 @@ import {
   SaveDeviceParams
 } from '@shared/models/device.models';
 import { EntitySubtype } from '@shared/models/entity-type.models';
-import { AuthService } from '@core/auth/auth.service';
+import { getJwtToken } from '@core/authentication/auth-token-store';
 import { BulkImportRequest, BulkImportResult } from '@shared/import-export/import-export.models';
 import { PersistentRpc, RpcStatus } from '@shared/models/rpc.models';
 import { ResourcesService } from '@core/services/resources.service';
@@ -115,7 +115,7 @@ export class DeviceService {
       const request = new XMLHttpRequest();
       request.open('GET', url, false);
       request.setRequestHeader('Accept', 'application/json, text/plain, */*');
-      const jwtToken = AuthService.getJwtToken();
+      const jwtToken = getJwtToken();
       if (jwtToken) {
         request.setRequestHeader('X-Authorization', 'Bearer ' + jwtToken);
       }
