@@ -65,7 +65,7 @@ export class TelemetryWebsocketService extends WebsocketService<TelemetrySubscri
   constructor(protected store: Store<AppState>,
               protected authService: AuthSession,
               protected ngZone: NgZone,
-              @Inject(WINDOW) protected window: Window) {
+              protected window: Window) {
     super(store, authService, ngZone, 'api/ws', new TelemetryPluginCmdsWrapper(), window);
   }
 

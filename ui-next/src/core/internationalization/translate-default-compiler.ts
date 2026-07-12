@@ -15,7 +15,6 @@
 ///
 
 import {
-  MESSAGE_FORMAT_CONFIG,
   MessageFormatConfig,
   TranslateMessageFormatCompiler
 } from 'ngx-translate-messageformat-compiler';
@@ -24,8 +23,6 @@ import { parse } from '@messageformat/parser';
 export class TranslateDefaultCompiler extends TranslateMessageFormatCompiler {
 
   constructor(
-    @Optional()
-    @Inject(MESSAGE_FORMAT_CONFIG)
       config?: MessageFormatConfig
   ) {
     super(config);

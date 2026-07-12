@@ -60,7 +60,7 @@ export abstract class WebsocketService<T extends WsSubscriber> implements WsServ
 
   protected constructor(protected store: Store<AppState>,
                         protected authService: AuthSession,
-                        protected ngZone: NgZone,
+                        protected ngZone: { runOutsideAngular: (fn: () => void) => void } = { runOutsideAngular: (fn) => fn },
                         protected apiEndpoint: string,
                         protected cmdWrapper: CmdWrapper,
                         protected window: Window) {
@@ -183,7 +183,7 @@ export abstract class WebsocketService<T extends WsSubscriber> implements WsServ
 
     this.dataStream.subscribe({
       next: (message: CmdUpdateMsg) => {
-        this.ngZone.runOutsideAngular(() => {
+        (() => {
           this.onMessage(message);
         });
       },
