@@ -51,6 +51,8 @@ const vitestConfiguration = defineConfig({
       "tests/parity/auth-parity.spec.ts",
       // parity Interceptor chain specs (ใช้ vitest + source inspection)
       "tests/parity/interceptors-parity.spec.ts",
+      // parity Widget subscription (telemetry) specs
+      "tests/parity/telemetry-parity.spec.ts",
     ],
     // หมายเหตุ: tests/parity/parity-smoke.spec.ts เป็น Playwright spec (import จาก
     // @playwright/test) จึงต้องถูก exclude เพื่อกัน vitest รันผิดตัว.
