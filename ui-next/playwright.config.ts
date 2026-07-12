@@ -33,7 +33,9 @@ const playwrightConfiguration = defineConfig({
   ],
 
   use: {
-    baseURL: "http://localhost:3000",
+    // baseURL รองรับ env override (PLAYWRIGHT_BASE_URL) สำหรับกรณี port 3000 ไม่ว่าง
+    // default คือ localhost:3000 ซึ่งเป็น Next.js default
+    baseURL: process.env.PLAYWRIGHT_BASE_URL ?? "http://localhost:3000",
     trace: "on-first-retry",
     screenshot: "only-on-failure",
     video: "retain-on-failure",

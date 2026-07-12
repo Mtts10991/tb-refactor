@@ -28,8 +28,12 @@ export default createMiddleware(internationalizationRouting);
  * กำหนด paths ที่ middleware ทำงาน.
  * แมตช์ทุก path ยกเว้น: API routes, Next.js internals (_next), static files.
  *
+ * หมายเหตุสำคัญ: Next.js ต้องการ export ชื่อ "config" เป็นชื่อ reserved
+ * ห้ามเปลี่ยนชื่อเป็นชื่ออื่น เพราะ Next.js จะมองข้ามและทำให้ middleware ทำงานบนทุก path
+ * รวมทั้ง /_next/static/* ซึ่งจะทำให้ browser โหลด CSS/JS ไม่ได้ (redirect ไป /en/_next/...)
+ *
  * หมายเหตุ: /api/* ผ่าน proxy ของ next.config.ts ไม่ต้องผ่าน middleware
  */
-export const routingConfiguration = {
+export const config = {
   matcher: ["/((?!api|_next|_vercel|.*\\..*).*)"],
 };
