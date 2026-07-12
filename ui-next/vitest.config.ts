@@ -28,6 +28,7 @@ const vitestConfiguration = defineConfig({
       "@shared": path.resolve(currentDirectory, "./src/shared"),
       "@widgets": path.resolve(currentDirectory, "./src/widgets"),
       "@features": path.resolve(currentDirectory, "./src/feature-components"),
+      "@home": path.resolve(currentDirectory, "./src/feature-components"),
       "@styles": path.resolve(currentDirectory, "./src/styles"),
       "@components": path.resolve(currentDirectory, "./src/components"),
       "@lib": path.resolve(currentDirectory, "./src/lib"),
