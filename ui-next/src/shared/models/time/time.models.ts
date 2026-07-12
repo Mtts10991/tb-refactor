@@ -15,7 +15,7 @@
 ///
 
 import { TimeService } from '@core/services/time.service';
-import { deepClean, deepClone, isDefined, isDefinedAndNotNull, isNumeric, isUndefined } from '@app/core/utils';
+import { deepClean, deepClone, isDefined, isDefinedAndNotNull, isNumeric, isUndefined } from '@core/utils';
 import moment_ from 'moment';
 import * as momentTz from 'moment-timezone';
 import { IntervalType } from '@shared/models/telemetry/telemetry.models';
