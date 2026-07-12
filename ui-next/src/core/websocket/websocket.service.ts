@@ -15,7 +15,7 @@
 ///
 
 import { CmdWrapper, WsService, WsSubscriber } from '@shared/models/websocket/websocket.models';
-type Store<T> = { dispatch: (action: unknown) => void; select: (selector: unknown) => { pipe: (...ops: unknown[]) => { subscribe: (cb: (v: unknown) => void) => { unsubscribe: () => void } } } };
+type Store<T> = { dispatch: (action: unknown) => void; select: (selector: unknown) => { subscribe: (cb: (v: unknown) => void) => { unsubscribe: () => void } } };
 import { AppState } from '@core/core.state';
 import { AuthSession } from '@core/authentication/auth-session';
 import { getJwtToken, isJwtTokenValid } from '@core/authentication/auth-token-store';
@@ -64,7 +64,7 @@ export abstract class WebsocketService<T extends WsSubscriber> implements WsServ
                         protected apiEndpoint: string,
                         protected cmdWrapper: CmdWrapper,
                         protected window: Window) {
-    this.store.pipe(select(selectIsAuthenticated)).subscribe(
+    this.store.select(selectIsAuthenticated).subscribe(
       () => {
         this.reset(true);
       }
