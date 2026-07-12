@@ -1694,3 +1694,341 @@ export function calculateTsOffsetChange(
 ): boolean {
   return oldTimezone !== newTimezone;
 }
+
+// ============================================================
+// WIDGET SUBSCRIPTION: dataLoaded logic
+// ============================================================
+
+/**
+ * สร้าง datasource page จาก pageData
+ */
+export function createDatasourcePage(
+  pageData: any,
+  entityDataToDatasourceFn: (datasource: any, entityData: any, index: number) => any,
+  configuredDatasource: any,
+): { data: any[]; hasNext: boolean; totalElements: number; totalPages: number } {
+  if (!pageData || !configuredDatasource) {
+    return { data: [], hasNext: false, totalElements: 0, totalPages: 0 };
+  }
+  const datasources = (pageData.data || []).map((entityData: any, index: number) =>
+    entityDataToDatasourceFn(configuredDatasource, entityData, index)
+  );
+  return {
+    data: datasources,
+    hasNext: pageData.hasNext || false,
+    totalElements: pageData.totalElements || 0,
+    totalPages: pageData.totalPages || 0,
+  };
+}
+
+/**
+ * สร้าง data page จาก datasources + data array
+ */
+export function createDataPage(
+  datasources: any[],
+  data: any[][],
+  entityDataToDatasourceDataFn: (datasource: any, data: any[]) => any,
+): { data: any[]; hasNext: boolean; totalElements: number; totalPages: number } {
+  if (!datasources || !datasources.length) {
+    return { data: [], hasNext: false, totalElements: 0, totalPages: 0 };
+  }
+  const datasourceData = datasources.map((ds: any, index: number) =>
+    entityDataToDatasourceDataFn(ds, data[index] || [])
+  );
+  return {
+    data: datasourceData,
+    hasNext: false,
+    totalElements: datasourceData.length,
+    totalPages: 1,
+  };
+}
+
+/**
+ * ตรวจสอบ data overflow (entity count > pageSize)
+ */
+export function checkDataOverflow(
+  datasourceType: string,
+  pageData: any,
+  singleEntity: boolean,
+  warnOnPageDataOverflow: boolean,
+): { shouldWarn: boolean; messageKey: string; params: Record<string, number> } {
+  if (datasourceType === "entity" && pageData?.hasNext && !singleEntity && warnOnPageDataOverflow) {
+    return {
+      shouldWarn: true,
+      messageKey: "widget.data-overflow",
+      params: { count: pageData.data?.length || 0, total: pageData.totalElements || 0 },
+    };
+  }
+  return { shouldWarn: false, messageKey: "", params: {} };
+}
+
+// ============================================================
+// WIDGET SUBSCRIPTION: configureLoadedData logic (extracted)
+// ============================================================
+
+/**
+ * คำนวณ dataKeyStartIndex สำหรับแต่ละ configuredDatasource
+ */
+export function calculateDataKeyStartIndices(
+  configuredDatasources: any[],
+): number[] {
+  const indices: number[] = [];
+  let dataKeyIndex = 0;
+  let latestDataKeyIndex = 0;
+  for (const ds of configuredDatasources || []) {
+    indices.push(dataKeyIndex);
+    if (ds.dataKeys) {
+      dataKeyIndex += ds.dataKeys.length;
+    }
+    ds.dataKeyStartIndex = indices[indices.length - 1];
+    ds.latestDataKeyStartIndex = latestDataKeyIndex;
+    if (ds.latestDataKeys) {
+      latestDataKeyIndex += ds.latestDataKeys.length;
+    }
+  }
+  return indices;
+}
+
+/**
+ * ตรวจสอบว่า datasource มี latest data keys หรือไม่
+ */
+export function hasLatestDataKeys(datasources: any[]): boolean {
+  return (datasources || []).some(ds =>
+    ds.latestDataKeys && ds.latestDataKeys.length > 0
+  );
+}
+
+/**
+ * สร้าง data array จาก datasource pages
+ */
+export function buildDataArrayFromPages(
+  datasourcePages: any[],
+  dataPages: any[],
+  displayLegend: boolean,
+): { data: any[]; hiddenData: any[]; legendKeys: any[]; legendData: any[] } {
+  const data: any[] = [];
+  const hiddenData: any[] = [];
+  const legendKeys: any[] = [];
+  const legendData: any[] = [];
+
+  for (let dsIndex = 0; dsIndex < (datasourcePages || []).length; dsIndex++) {
+    const dsPage = datasourcePages[dsIndex];
+    const dataPage = dataPages[dsIndex];
+    if (!dsPage || !dataPage) continue;
+
+    for (let dsElementIndex = 0; dsElementIndex < dsPage.data.length; dsElementIndex++) {
+      const datasource = dsPage.data[dsElementIndex];
+      if (!datasource.dataKeys) continue;
+
+      for (let keyIndex = 0; keyIndex < datasource.dataKeys.length; keyIndex++) {
+        const dataKey = datasource.dataKeys[keyIndex];
+        const dsData = dataPage.data[dsElementIndex]?.[keyIndex] || { data: [] };
+        data.push(dsData);
+        hiddenData.push({ data: [] });
+
+        if (displayLegend) {
+          legendKeys.push({
+            dataKey,
+            dataIndex: data.length - 1,
+            valueFormat: { decimals: dataKey.decimals ?? 2, units: dataKey.units ?? "" },
+          });
+          legendData.push({ min: null, max: null, avg: null, total: null, latest: null, hidden: false });
+        }
+      }
+    }
+  }
+
+  return { data, hiddenData, legendKeys, legendData };
+}
+
+// ============================================================
+// ENTITY SERVICE: getEntityObservable dispatch (extended)
+// ============================================================
+
+/**
+ * Extended dispatch table for getEntity (includes all entity types)
+ */
+export function buildExtendedGetEntityDispatchTable(): Record<string, { service: string; method: string }> {
+  return {
+    DEVICE: { service: "deviceService", method: "getDevice" },
+    ASSET: { service: "assetService", method: "getAsset" },
+    TENANT: { service: "tenantService", method: "getTenant" },
+    CUSTOMER: { service: "customerService", method: "getCustomer" },
+    USER: { service: "userService", method: "getUser" },
+    EDGE: { service: "edgeService", method: "getEdge" },
+    ENTITY_VIEW: { service: "entityViewService", method: "getEntityView" },
+    RULE_CHAIN: { service: "ruleChainService", method: "getRuleChain" },
+    DASHBOARD: { service: "dashboardService", method: "getDashboardInfo" },
+    ALARM: { service: "alarmService", method: "getAlarm" },
+    OTA_PACKAGE: { service: "otaPackageService", method: "getOtaPackageInfo" },
+    QUEUE: { service: "queueService", method: "getQueueById" },
+    QUEUE_STATS: { service: "queueService", method: "getQueueStatisticsById" },
+    MOBILE_APP: { service: "mobileAppService", method: "getMobileAppInfoById" },
+    MOBILE_APP_BUNDLE: { service: "mobileAppService", method: "getMobileAppBundleInfoById" },
+    AI_MODEL: { service: "aiModelService", method: "getAiModelById" },
+    DEVICE_PROFILE: { service: "deviceProfileService", method: "getDeviceProfile" },
+    ASSET_PROFILE: { service: "assetProfileService", method: "getAssetProfile" },
+  };
+}
+
+/**
+ * Extended dispatch for getEntity with all entity types
+ */
+export function dispatchGetEntityExtended(
+  entityType: string,
+  entityId: string,
+  services: Record<string, any>,
+): any {
+  const table = buildExtendedGetEntityDispatchTable();
+  const entry = table[entityType];
+  if (!entry) return null;
+  const service = services[entry.service];
+  if (!service || typeof service[entry.method] !== "function") return null;
+  return service[entry.method](entityId);
+}
+
+/**
+ * Extended save dispatch table
+ */
+export function buildExtendedSaveEntityDispatchTable(): Record<string, { service: string; method: string }> {
+  return {
+    DEVICE: { service: "deviceService", method: "saveDevice" },
+    ASSET: { service: "assetService", method: "saveAsset" },
+    TENANT: { service: "tenantService", method: "saveTenant" },
+    CUSTOMER: { service: "customerService", method: "saveCustomer" },
+    USER: { service: "userService", method: "saveUser" },
+    EDGE: { service: "edgeService", method: "saveEdge" },
+    ENTITY_VIEW: { service: "entityViewService", method: "saveEntityView" },
+    RULE_CHAIN: { service: "ruleChainService", method: "saveRuleChain" },
+    DASHBOARD: { service: "dashboardService", method: "saveDashboard" },
+    DEVICE_PROFILE: { service: "deviceProfileService", method: "saveDeviceProfile" },
+    ASSET_PROFILE: { service: "assetProfileService", method: "saveAssetProfile" },
+  };
+}
+
+/**
+ * Extended delete dispatch table
+ */
+export function buildExtendedDeleteEntityDispatchTable(): Record<string, { service: string; method: string }> {
+  return {
+    DEVICE: { service: "deviceService", method: "deleteDevice" },
+    ASSET: { service: "assetService", method: "deleteAsset" },
+    TENANT: { service: "tenantService", method: "deleteTenant" },
+    CUSTOMER: { service: "customerService", method: "deleteCustomer" },
+    USER: { service: "userService", method: "deleteUser" },
+    EDGE: { service: "edgeService", method: "deleteEdge" },
+    ENTITY_VIEW: { service: "entityViewService", method: "deleteEntityView" },
+    RULE_CHAIN: { service: "ruleChainService", method: "deleteRuleChain" },
+    DASHBOARD: { service: "dashboardService", method: "deleteDashboard" },
+    DEVICE_PROFILE: { service: "deviceProfileService", method: "deleteDeviceProfile" },
+    ASSET_PROFILE: { service: "assetProfileService", method: "deleteAssetProfile" },
+  };
+}
+
+// ============================================================
+// ENTITY SERVICE: saveEntityParameters pipeline
+// ============================================================
+
+/**
+ * สร้าง import tasks จาก entity data list
+ */
+export function createImportTasks(
+  entityType: string,
+  entityDataList: Record<string, any>[],
+  existingEntities: Record<string, any>[],
+): { toCreate: Record<string, any>[]; toUpdate: Record<string, any>[]; toUpdateIds: string[] } {
+  const { toCreate, toUpdate } = splitEntityDataIntoTasks(entityDataList, existingEntities);
+  const toUpdateIds = toUpdate.map((e: any) => e.id || e.name).filter(Boolean) as string[];
+  return { toCreate, toUpdate, toUpdateIds };
+}
+
+/**
+ * คำนวณ progress percentage สำหรับ import
+ */
+export function calculateImportProgress(
+  completed: number,
+  total: number,
+): number {
+  if (total <= 0) return 100;
+  return Math.round((completed / total) * 100);
+}
+
+/**
+ * สร้าง import result summary
+ */
+export function createImportResultSummary(
+  created: number,
+  updated: number,
+  errors: string[],
+): { created: number; updated: number; errors: string[]; total: number; hasErrors: boolean } {
+  return {
+    created,
+    updated,
+    errors: errors || [],
+    total: created + updated,
+    hasErrors: (errors || []).length > 0,
+  };
+}
+
+// ============================================================
+// WIDGET SUBSCRIPTION: prepareDataSubscriptions logic
+// ============================================================
+
+/**
+ * สร้าง EntityDataListener จาก datasource config
+ */
+export function createEntityDataListener(
+  datasource: any,
+  datasourceIndex: number,
+  subscriptionType: string,
+  useTimewindow: boolean,
+): any {
+  return {
+    subscriptionType,
+    useTimewindow,
+    configDatasource: datasource,
+    configDatasourceIndex: datasourceIndex,
+    subscriptionTimewindow: null,
+    latestTsOffset: 0,
+    dataLoaded: null,
+    dataUpdated: null,
+    initialPageDataChanged: null,
+    forceReInit: null,
+    updateRealtimeSubscription: null,
+    setRealtimeSubscription: null,
+  };
+}
+
+/**
+ * ตรวจสอบว่า datasource มี comparison data keys หรือไม่
+ */
+export function hasComparisonDataKeys(datasource: any): boolean {
+  if (!datasource?.dataKeys) return false;
+  return datasource.dataKeys.some((key: any) =>
+    key.settings?.comparisonSettings?.showValuesForComparison
+  );
+}
+
+/**
+ * สร้าง additional datasource สำหรับ comparison
+ */
+export function createAdditionalDatasourceForComparison(
+  datasource: any,
+  datasourceIndex: number,
+): any | null {
+  if (!datasource?.dataKeys) return null;
+  const additionalDataKeys = datasource.dataKeys
+    .filter((key: any) => key.settings?.comparisonSettings?.showValuesForComparison)
+    .map((key: any, keyIndex: number) => ({
+      ...JSON.parse(JSON.stringify(key)),
+      isAdditional: true,
+      origDataKeyIndex: keyIndex,
+    }));
+  if (additionalDataKeys.length === 0) return null;
+  return {
+    ...JSON.parse(JSON.stringify(datasource)),
+    dataKeys: additionalDataKeys,
+    isAdditional: true,
+    origDatasourceIndex: datasourceIndex,
+  };
+}

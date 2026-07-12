@@ -11,6 +11,35 @@ import {
   emptyPageData, datasourcesHasAggregation, createFormattedData, calculateTsOffset,
   buildWsUri, shouldShowWsError, calculateJitterDelay,
   ServerErrorCode, errorCodeToTranslationKey,
+  convertValue, isNumericString, buildEntityKeys, keyTypeToKeyType,
+  createFunctionPageData, calculateComparisonValue,
+  setDatasourceNames, hasAliasChanged, hasFilterChanged, createDatasourceKey,
+  entityTypeToPluralUrl, entityTypeToSingularUrl,
+  entityToCsvRow, parseCsvLine, csvRowToEntityData,
+  updateLatestData, calculateLegendData, checkRpcTargetValid, checkAlarmSourceValid,
+  getAliasFilterTypesForEntityTypes, filterAliasByEntityTypesImpl, prepareAllowedEntityTypesImpl,
+  calculateAggInterval, updateAggregatedData, processAggregatedData,
+  updateLastInterval, aggregationMapToData,
+  getFirstEntityInfoFromSubscription, shouldUpdateOnAliasChange, shouldUpdateOnFilterChange,
+  configureLegendFromDatasources, entityDataToDatasourceDataImpl,
+  buildGetEntityDispatchTable, buildSaveEntityDispatchTable, buildDeleteEntityDispatchTable,
+  dispatchGetEntity, dispatchSaveEntity, dispatchDeleteEntity,
+  calculateDataIndex, shouldUpdateLatestData, isDataKeyHidden,
+  createLegendKey, createLegendKeyData, assignDataKeyColors, updateComparisonColors,
+  dispatchGetEntities, buildGetEntitiesByIdsUrl, buildGetEntitiesByNameFilterUrl,
+  processEntityDataUpdate, buildEntityDataCmd, buildEntityCountCmd,
+  convertEntityDataToDatasourceData, updateDataKeyLabelsForComparison,
+  calculateNextTickTs, filterAggregationMapByTimeWindow, createRealtimeUpdateCommand,
+  createGetEntityObservable, createGetEntitiesObservable,
+  parseCsvHeader, csvRowsToEntityDataArray, splitEntityDataIntoTasks,
+  buildFindEntityDataByQueryBody, buildFindAlarmDataByQueryBody,
+  toggleDataVisibility, hasTimewindowTypeChanged, calculateTsOffsetChange,
+  createDatasourcePage, createDataPage, checkDataOverflow,
+  calculateDataKeyStartIndices, hasLatestDataKeys, buildDataArrayFromPages,
+  buildExtendedGetEntityDispatchTable, buildExtendedSaveEntityDispatchTable,
+  buildExtendedDeleteEntityDispatchTable, dispatchGetEntityExtended,
+  createImportTasks, calculateImportProgress, createImportResultSummary,
+  createEntityDataListener, hasComparisonDataKeys, createAdditionalDatasourceForComparison,
   type AggData,
 } from "../../src/core/pure-functions";
 
@@ -294,10 +323,6 @@ describe("errorCodeToTranslationKey", () => {
 // ============================================================
 // ENTITY DATA SUBSCRIPTION HELPERS
 // ============================================================
-import {
-  convertValue, isNumericString, buildEntityKeys, keyTypeToKeyType,
-  createFunctionPageData, calculateComparisonValue,
-} from "../../src/core/pure-functions";
 
 describe("convertValue", () => {
   it("แปลง numeric string เป็น number", () => {
@@ -390,9 +415,6 @@ describe("calculateComparisonValue", () => {
 // ============================================================
 // ALIAS CONTROLLER HELPERS
 // ============================================================
-import {
-  setDatasourceNames, hasAliasChanged, hasFilterChanged, createDatasourceKey,
-} from "../../src/core/pure-functions";
 
 describe("setDatasourceNames", () => {
   it("function type: ตั้งชื่อ + entityId", () => {
@@ -474,10 +496,6 @@ describe("createDatasourceKey", () => {
 // ============================================================
 // ENTITY SERVICE HELPERS
 // ============================================================
-import {
-  entityTypeToPluralUrl, entityTypeToSingularUrl,
-  entityToCsvRow, parseCsvLine, csvRowToEntityData,
-} from "../../src/core/pure-functions";
 
 describe("entityTypeToPluralUrl", () => {
   it("DEVICE → devices", () => { expect(entityTypeToPluralUrl("DEVICE")).toBe("devices"); });
@@ -560,9 +578,6 @@ describe("csvRowToEntityData", () => {
 // ============================================================
 // WIDGET SUBSCRIPTION PURE LOGIC
 // ============================================================
-import {
-  updateLatestData, calculateLegendData, checkRpcTargetValid, checkAlarmSourceValid,
-} from "../../src/core/pure-functions";
 
 describe("updateLatestData", () => {
   it("อัปเดต latest data จาก attribute/entityField keys", () => {
@@ -646,9 +661,6 @@ describe("checkAlarmSourceValid", () => {
 // ============================================================
 // ENTITY SERVICE PURE LOGIC
 // ============================================================
-import {
-  getAliasFilterTypesForEntityTypes, filterAliasByEntityTypesImpl, prepareAllowedEntityTypesImpl,
-} from "../../src/core/pure-functions";
 
 describe("getAliasFilterTypesForEntityTypes", () => {
   it("returns filter types for DEVICE", () => {
@@ -714,10 +726,6 @@ describe("prepareAllowedEntityTypesImpl", () => {
 // ============================================================
 // DATA AGGREGATOR PURE LOGIC
 // ============================================================
-import {
-  calculateAggInterval, updateAggregatedData, processAggregatedData,
-  updateLastInterval, aggregationMapToData,
-} from "../../src/core/pure-functions";
 
 describe("calculateAggInterval", () => {
   it("NONE type returns [ts, ts]", () => {
@@ -807,7 +815,6 @@ describe("aggregationMapToData", () => {
 // ============================================================
 // getFirstEntityInfoFromSubscription
 // ============================================================
-import { getFirstEntityInfoFromSubscription } from "../../src/core/pure-functions";
 
 describe("getFirstEntityInfoFromSubscription", () => {
   it("rpc type returns target entity", () => {
@@ -850,7 +857,6 @@ describe("getFirstEntityInfoFromSubscription", () => {
 // ============================================================
 // shouldUpdateOnAliasChange + shouldUpdateOnFilterChange
 // ============================================================
-import { shouldUpdateOnAliasChange, shouldUpdateOnFilterChange } from "../../src/core/pure-functions";
 
 describe("shouldUpdateOnAliasChange", () => {
   it("rpc type checks targetDeviceAliasId", () => {
@@ -883,7 +889,6 @@ describe("shouldUpdateOnFilterChange", () => {
 // ============================================================
 // configureLegendFromDatasources + entityDataToDatasourceDataImpl
 // ============================================================
-import { configureLegendFromDatasources, entityDataToDatasourceDataImpl } from "../../src/core/pure-functions";
 
 describe("configureLegendFromDatasources", () => {
   it("builds legend from datasources", () => {
@@ -926,10 +931,6 @@ describe("entityDataToDatasourceDataImpl", () => {
 // ============================================================
 // Entity dispatch tables + dispatch functions
 // ============================================================
-import {
-  buildGetEntityDispatchTable, buildSaveEntityDispatchTable, buildDeleteEntityDispatchTable,
-  dispatchGetEntity, dispatchSaveEntity, dispatchDeleteEntity,
-} from "../../src/core/pure-functions";
 
 describe("dispatch tables", () => {
   it("getEntity table has all 9 types", () => {
@@ -992,9 +993,6 @@ describe("dispatchDeleteEntity", () => {
 // ============================================================
 // processDataUpdated helpers
 // ============================================================
-import {
-  calculateDataIndex, shouldUpdateLatestData, isDataKeyHidden,
-} from "../../src/core/pure-functions";
 
 describe("calculateDataIndex", () => {
   it("calculates index from datasource + dataKey indices", () => {
@@ -1048,9 +1046,6 @@ describe("isDataKeyHidden", () => {
 // ============================================================
 // configureLoadedData helpers
 // ============================================================
-import {
-  createLegendKey, createLegendKeyData, assignDataKeyColors, updateComparisonColors,
-} from "../../src/core/pure-functions";
 
 describe("createLegendKey", () => {
   it("creates legend key with custom decimals/units", () => {
@@ -1111,9 +1106,6 @@ describe("updateComparisonColors", () => {
 // ============================================================
 // Entity dispatch (plural) + URL builders
 // ============================================================
-import {
-  dispatchGetEntities, buildGetEntitiesByIdsUrl, buildGetEntitiesByNameFilterUrl,
-} from "../../src/core/pure-functions";
 
 describe("dispatchGetEntities", () => {
   it("dispatches to plural method", () => {
@@ -1143,9 +1135,6 @@ describe("buildGetEntitiesByNameFilterUrl", () => {
 // ============================================================
 // EntityDataSubscription helpers
 // ============================================================
-import {
-  processEntityDataUpdate, buildEntityDataCmd, buildEntityCountCmd,
-} from "../../src/core/pure-functions";
 
 describe("processEntityDataUpdate", () => {
   it("processes initial data (not update)", () => {
@@ -1208,14 +1197,6 @@ describe("buildEntityCountCmd", () => {
 // ============================================================
 // convertEntityDataToDatasourceData + updateDataKeyLabelsForComparison
 // ============================================================
-import {
-  convertEntityDataToDatasourceData, updateDataKeyLabelsForComparison,
-  calculateNextTickTs, filterAggregationMapByTimeWindow, createRealtimeUpdateCommand,
-  createGetEntityObservable, createGetEntitiesObservable,
-  parseCsvHeader, csvRowsToEntityDataArray, splitEntityDataIntoTasks,
-  buildFindEntityDataByQueryBody, buildFindAlarmDataByQueryBody,
-  toggleDataVisibility, hasTimewindowTypeChanged, calculateTsOffsetChange,
-} from "../../src/core/pure-functions";
 
 describe("convertEntityDataToDatasourceData", () => {
   it("converts datasource + data to DatasourceData array", () => {
@@ -1383,6 +1364,7 @@ describe("buildFindAlarmDataByQueryBody", () => {
   it("handles null query", () => {
     const body = buildFindAlarmDataByQueryBody(null);
     expect(body).toEqual({});
+  });
 });
 
 describe("toggleDataVisibility", () => {
@@ -1435,4 +1417,195 @@ describe("calculateTsOffsetChange", () => {
   });
 });
 
+// ============================================================
+// dataLoaded + configureLoadedData helpers
+// ============================================================
+
+describe("createDatasourcePage", () => {
+  it("creates page from pageData", () => {
+    const pageData = { data: [{ entityId: { id: "d1" } }], hasNext: false, totalElements: 1, totalPages: 1 };
+    const result = createDatasourcePage(pageData, (ds: any, ed: any) => ({ ...ed, ds }), { type: "entity" });
+    expect(result.data).toHaveLength(1);
+    expect(result.totalElements).toBe(1);
+  });
+  it("handles null pageData", () => {
+    expect(createDatasourcePage(null, () => ({}), {})).toEqual({ data: [], hasNext: false, totalElements: 0, totalPages: 0 });
+  });
 });
+
+describe("createDataPage", () => {
+  it("creates data page from datasources + data", () => {
+    const dss = [{ dataKeys: [{ name: "temp" }] }];
+    const data = [[{ data: [{ ts: 1, value: 10 }] }]];
+    const result = createDataPage(dss, data, (ds: any, d: any) => ({ ds, data: d }));
+    expect(result.data).toHaveLength(1);
+  });
+  it("handles empty datasources", () => {
+    expect(createDataPage([], [], () => ({}))).toEqual({ data: [], hasNext: false, totalElements: 0, totalPages: 0 });
+  });
+});
+
+describe("checkDataOverflow", () => {
+  it("warns when entity type + hasNext + !singleEntity + warnOnOverflow", () => {
+    const result = checkDataOverflow("entity", { hasNext: true, data: [1,2], totalElements: 100 }, false, true);
+    expect(result.shouldWarn).toBe(true);
+    expect(result.params.count).toBe(2);
+    expect(result.params.total).toBe(100);
+  });
+  it("does not warn when singleEntity", () => {
+    expect(checkDataOverflow("entity", { hasNext: true }, true, true).shouldWarn).toBe(false);
+  });
+  it("does not warn when not entity type", () => {
+    expect(checkDataOverflow("function", { hasNext: true }, false, true).shouldWarn).toBe(false);
+  });
+});
+
+describe("calculateDataKeyStartIndices", () => {
+  it("calculates start indices", () => {
+    const dss = [{ dataKeys: [{}, {}] }, { dataKeys: [{}, {}, {}] }];
+    const result = calculateDataKeyStartIndices(dss);
+    expect(result).toEqual([0, 2]);
+    expect(dss[0].dataKeyStartIndex).toBe(0);
+    expect(dss[1].dataKeyStartIndex).toBe(2);
+  });
+  it("handles latestDataKeys", () => {
+    const dss = [{ dataKeys: [{}], latestDataKeys: [{}, {}] }];
+    calculateDataKeyStartIndices(dss);
+    expect(dss[0].latestDataKeyStartIndex).toBe(0);
+  });
+  it("handles empty", () => {
+    expect(calculateDataKeyStartIndices([])).toEqual([]);
+  });
+});
+
+describe("hasLatestDataKeys", () => {
+  it("true when datasource has latestDataKeys", () => {
+    expect(hasLatestDataKeys([{ latestDataKeys: [{ name: "model" }] }])).toBe(true);
+  });
+  it("false when no latestDataKeys", () => {
+    expect(hasLatestDataKeys([{ dataKeys: [{ name: "temp" }] }])).toBe(false);
+  });
+  it("false for empty", () => {
+    expect(hasLatestDataKeys([])).toBe(false);
+  });
+});
+
+describe("buildDataArrayFromPages", () => {
+  it("builds data + hiddenData + legend from pages", () => {
+    const dsPages = [{ data: [{ dataKeys: [{ name: "temp" }] }] }];
+    const dataPages = [{ data: [[{ data: [{ ts: 1, value: 10 }] }]] }];
+    const result = buildDataArrayFromPages(dsPages, dataPages, true);
+    expect(result.data).toHaveLength(1);
+    expect(result.hiddenData).toHaveLength(1);
+    expect(result.legendKeys).toHaveLength(1);
+    expect(result.legendData).toHaveLength(1);
+  });
+  it("no legend when displayLegend=false", () => {
+    const result = buildDataArrayFromPages([{ data: [{ dataKeys: [{}] }] }], [{ data: [[{ data: [] }]] }], false);
+    expect(result.legendKeys).toEqual([]);
+  });
+  it("handles empty pages", () => {
+    const result = buildDataArrayFromPages([], [], true);
+    expect(result.data).toEqual([]);
+  });
+});
+
+describe("extended dispatch tables", () => {
+  it("getEntity has 18 types", () => {
+    const table = buildExtendedGetEntityDispatchTable();
+    expect(Object.keys(table).length).toBeGreaterThanOrEqual(18);
+    expect(table.ALARM).toEqual({ service: "alarmService", method: "getAlarm" });
+    expect(table.DEVICE_PROFILE).toEqual({ service: "deviceProfileService", method: "getDeviceProfile" });
+  });
+  it("saveEntity has 11 types", () => {
+    expect(Object.keys(buildExtendedSaveEntityDispatchTable()).length).toBeGreaterThanOrEqual(11);
+  });
+  it("deleteEntity has 11 types", () => {
+    expect(Object.keys(buildExtendedDeleteEntityDispatchTable()).length).toBeGreaterThanOrEqual(11);
+  });
+});
+
+describe("dispatchGetEntityExtended", () => {
+  it("dispatches ALARM", () => {
+    const services = { alarmService: { getAlarm: () => "alarm" } };
+    expect(dispatchGetEntityExtended("ALARM", "a1", services)).toBe("alarm");
+  });
+  it("dispatches DEVICE_PROFILE", () => {
+    const services = { deviceProfileService: { getDeviceProfile: () => "dp" } };
+    expect(dispatchGetEntityExtended("DEVICE_PROFILE", "dp1", services)).toBe("dp");
+  });
+  it("returns null for unknown", () => {
+    expect(dispatchGetEntityExtended("UNKNOWN", "x", {})).toBeNull();
+  });
+});
+
+describe("createImportTasks", () => {
+  it("splits into create + update with IDs", () => {
+    const data = [{ id: "1", name: "A" }, { id: "2", name: "B" }, { id: "3", name: "C" }];
+    const existing = [{ id: "1" }, { id: "2" }];
+    const result = createImportTasks("DEVICE", data, existing);
+    expect(result.toCreate).toHaveLength(1);
+    expect(result.toUpdate).toHaveLength(2);
+    expect(result.toUpdateIds).toEqual(["1", "2"]);
+  });
+});
+
+describe("calculateImportProgress", () => {
+  it("calculates percentage", () => {
+    expect(calculateImportProgress(5, 10)).toBe(50);
+    expect(calculateImportProgress(10, 10)).toBe(100);
+  });
+  it("returns 100 for 0 total", () => {
+    expect(calculateImportProgress(0, 0)).toBe(100);
+  });
+});
+
+describe("createImportResultSummary", () => {
+  it("creates summary", () => {
+    const result = createImportResultSummary(5, 3, ["error1"]);
+    expect(result.created).toBe(5);
+    expect(result.updated).toBe(3);
+    expect(result.total).toBe(8);
+    expect(result.hasErrors).toBe(true);
+  });
+  it("no errors", () => {
+    const result = createImportResultSummary(5, 3, []);
+    expect(result.hasErrors).toBe(false);
+  });
+});
+
+describe("createEntityDataListener", () => {
+  it("creates listener from datasource config", () => {
+    const listener = createEntityDataListener({ type: "entity", dataKeys: [] }, 0, "timeseries", true);
+    expect(listener.subscriptionType).toBe("timeseries");
+    expect(listener.useTimewindow).toBe(true);
+    expect(listener.configDatasourceIndex).toBe(0);
+  });
+});
+
+describe("hasComparisonDataKeys", () => {
+  it("true when key has comparisonSettings.showValuesForComparison", () => {
+    expect(hasComparisonDataKeys({ dataKeys: [{ settings: { comparisonSettings: { showValuesForComparison: true } } }] })).toBe(true);
+  });
+  it("false when no comparison settings", () => {
+    expect(hasComparisonDataKeys({ dataKeys: [{ settings: {} }] })).toBe(false);
+  });
+  it("false for null datasource", () => {
+    expect(hasComparisonDataKeys(null)).toBe(false);
+  });
+});
+
+describe("createAdditionalDatasourceForComparison", () => {
+  it("creates additional datasource with isAdditional=true", () => {
+    const ds = { dataKeys: [{ name: "temp", settings: { comparisonSettings: { showValuesForComparison: true } } }] };
+    const result = createAdditionalDatasourceForComparison(ds, 0);
+    expect(result).not.toBeNull();
+    expect(result.isAdditional).toBe(true);
+    expect(result.origDatasourceIndex).toBe(0);
+    expect(result.dataKeys[0].isAdditional).toBe(true);
+  });
+  it("returns null when no comparison keys", () => {
+    expect(createAdditionalDatasourceForComparison({ dataKeys: [{ settings: {} }] }, 0)).toBeNull();
+  });
+});
+
