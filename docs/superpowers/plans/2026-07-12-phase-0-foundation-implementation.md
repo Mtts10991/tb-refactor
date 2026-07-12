@@ -342,14 +342,15 @@ git commit -m "feat(ui-next): สร้าง Next.js 16 scaffold พร้อ�
 
 ---
 
-## Task 2: ตั้งค่า HeroUI v3 + Tailwind + brand tokens
+## Task 2: ตั้งค่า HeroUI v3 + Tailwind v4 + brand tokens
+
+> **อัปเดตจากการ execute Task 1:** Task 1 ค้นพบว่า `@heroui/react@3.x` peer-requires `tailwindcss >=4.0.0` ดังนั้นใช้ Tailwind v4 (ไม่ใช่ v3 ตามแผนเดิม). Tailwind v4 ใช้ CSS-first config (`@theme` blocks ใน CSS) แทน `tailwind.config.ts`.
 
 **Files:**
-- Create: `ui-next/postcss.config.mjs`
-- Create: `ui-next/tailwind.config.ts`
+- Verify (อาจมีอยู่แล้วจาก create-next-app): `ui-next/postcss.config.mjs`
 - Create: `ui-next/src/styles/brand-tokens.css`
 - Create: `ui-next/src/styles/heroui-theme.ts`
-- Modify: `ui-next/src/app/globals.css`
+- Modify: `ui-next/src/app/globals.css` (Tailwind v4 directives)
 
 **ParityEngine:** `ui-ngx/src/scss/constants.scss` (ค่า brand color), `ui-ngx/src/theme.scss`
 
@@ -360,16 +361,15 @@ git commit -m "feat(ui-next): สร้าง Next.js 16 scaffold พร้อ�
 - `$tb-dark-primary-color: #9fa8da`
 - `$tb-primary-color-light: #7986cb`
 
-- [ ] **Step 1: เขียน `postcss.config.mjs`**
+- [ ] **Step 1: ตรวจ `postcss.config.mjs` (สร้างจาก create-next-app แล้ว)**
 
-เขียนไฟล์ `ui-next/postcss.config.mjs`:
+อ่านไฟล์ `ui-next/postcss.config.mjs` — ถ้ามีอยู่แล้วและใช้ `@tailwindcss/postcss` (Tailwind v4) ก็ใช้ได้เลย. ถ้าเป็น v3 ให้เขียนทับ:
 
 ```javascript
 /** @type {import('postcss-load-config').Config} */
 const config = {
   plugins: {
-    tailwindcss: {},
-    autoprefixer: {},
+    "@tailwindcss/postcss": {},
   },
 };
 
@@ -499,54 +499,50 @@ export const thingsBoardHeroUiTheme = heroui({
 });
 ```
 
-- [ ] **Step 4: เขียน `tailwind.config.ts`**
+- [ ] **Step 4: เขียน Tailwind v4 theme ใน globals.css (CSS-first config)**
 
-เขียนไฟล์ `ui-next/tailwind.config.ts`:
+เนื่องจาก Tailwind v4 ใช้ CSS-first config แทน `tailwind.config.ts` ให้ define brand tokens ผ่าน `@theme` block ใน `globals.css`:
 
-```typescript
+อ่าน `ui-next/src/app/globals.css` (create-next-app สร้างไว้แล้วใน Task 1) แล้วเขียนทับเป็น:
+
+```css
 /**
  * @fileoverview
- * การตั้งค่า Tailwind CSS สำหรับ ThingsBoard UI — รวม HeroUI v3 preset
- * และการ map brand tokens ของ ThingsBoard เข้ากับ Tailwind color palette.
+ * Global CSS — Tailwind v4 directives + brand tokens ของ ThingsBoard.
+ * ไฟล์นี้ถูก import ใน root layout.tsx และมีผลทั้งแอป.
  *
- * @parityEngine Angular
- * พอร์ตมาจาก: ui-ngx/tailwind.config.js (Tailwind 3.4 ที่ใช้ใน Angular เดิม)
- *
- * @reason
- * ตั้งค่า HeroUI เป็น preset เพื่อให้ทุก HeroUI component ใช้ classes ของ Tailwind ได้
- * และกำหนด content paths ให้ครอบคลุมไฟล์ components ทั้งหมด
+ * Note: Tailwind v4 ใช้ @theme block ใน CSS แทน tailwind.config.ts (JS config).
+ * การ map brand colors ทำผ่าน @theme inline เพื่อให้ใช้ var() reference ได้.
  */
 
-import type { Config } from "tailwindcss";
-import { heroui } from "@heroui/react";
+@import "../styles/brand-tokens.css";
 
-const tailwindConfig: Config = {
-  content: [
-    "./src/**/*.{js,ts,jsx,tsx,mdx}",
-    "./node_modules/@heroui/theme/dist/**/*.{js,ts,jsx,tsx}",
-  ],
-  theme: {
-    extend: {
-      colors: {
-        // map brand tokens ของ ThingsBoard เข้า Tailwind
-        // ใช้ได้เช่น class="text-thingsboard-primary" หรือ "bg-thingsboard-secondary"
-        "thingsboard-primary": "var(--thingsboard-primary-color)",
-        "thingsboard-secondary": "var(--thingsboard-secondary-color)",
-        "thingsboard-hue-three": "var(--thingsboard-hue-three-color)",
-        "thingsboard-dark-primary": "var(--thingsboard-dark-primary-color)",
-        "thingsboard-primary-light": "var(--thingsboard-primary-color-light)",
-      },
-    },
-  },
-  darkMode: ["class", "[data-theme='dark']"],
-  plugins: [
-    // โหลด HeroUI plugin เพื่อให้ components ใช้ Tailwind classes ของ HeroUI ได้
-    heroui(),
-  ],
-};
+@import "tailwindcss";
 
-export default tailwindConfig;
+/* ตั้งค่า dark mode variant — ใช้ data-theme attribute บน html element */
+@custom-variant dark (&:where([data-theme="dark"], [data-theme="dark"] *));
+
+/* กำหนดค่า brand color ของ ThingsBoard ให้เป็น Tailwind utilities
+   (ใช้ได้เช่น text-thingsboard-primary, bg-thingsboard-secondary) */
+@theme inline {
+  --color-thingsboard-primary: var(--thingsboard-primary-color);
+  --color-thingsboard-secondary: var(--thingsboard-secondary-color);
+  --color-thingsboard-hue-three: var(--thingsboard-hue-three-color);
+  --color-thingsboard-dark-primary: var(--thingsboard-dark-primary-color);
+  --color-thingsboard-primary-light: var(--thingsboard-primary-color-light);
+}
+
+/* ค่า default ของ body — parity กับ Angular Material typography */
+html,
+body {
+  max-width: 100vw;
+  overflow-x: hidden;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen,
+    Ubuntu, Cantarell, "Open Sans", "Helvetica Neue", sans-serif;
+}
 ```
+
+หมายเหตุ: HeroUI v3 plugin จะถูกเพิ่มผ่าน `@plugin` directive ใน Task 2 Step 4b หลังจากทดสอบว่า Tailwind v4 + HeroUI ทำงานร่วมกันได้. ดู HeroUI v4 docs สำหรับรายละเอียด.
 
 - [ ] **Step 5: เขียน `globals.css`**
 
