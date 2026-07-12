@@ -1,0 +1,26 @@
+{
+  "app": {
+    "title": "ThingsBoard",
+    "subtitle": "แพลตฟอร์ม IoT โอเพนซอร์ส"
+  },
+  "home": {
+    "welcome": "ยินดีต้อนรับสู่ ThingsBoard",
+    "subtitle": "แพลตฟอร์ม IoT โอเพนซอร์ส"
+  },
+  "common": {
+    "loading": "กำลังโหลด...",
+    "error": "เกิดข้อผิดพลาด",
+    "save": "บันทึก",
+    "cancel": "ยกเลิก",
+    "delete": "ลบ",
+    "confirm": "ยืนยัน"
+  },
+  "language": {
+    "switch": "สลับภาษา",
+    "english": "English",
+    "thai": "ไทย"
+  },
+  "parity": {
+    "smokeTest": "โครงสร้างทดสอบ parity พร้อมใช้งาน"
+  }
+}

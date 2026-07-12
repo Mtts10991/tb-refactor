@@ -1,0 +1,26 @@
+{
+  "app": {
+    "title": "ThingsBoard",
+    "subtitle": "Open-source IoT Platform"
+  },
+  "home": {
+    "welcome": "Welcome to ThingsBoard",
+    "subtitle": "Open-source IoT Platform"
+  },
+  "common": {
+    "loading": "Loading...",
+    "error": "Error",
+    "save": "Save",
+    "cancel": "Cancel",
+    "delete": "Delete",
+    "confirm": "Confirm"
+  },
+  "language": {
+    "switch": "Switch language",
+    "english": "English",
+    "thai": "ไทย"
+  },
+  "parity": {
+    "smokeTest": "Parity test infrastructure is ready"
+  }
+}
