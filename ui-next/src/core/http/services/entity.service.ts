@@ -39,7 +39,7 @@ import { EntityViewService } from '@core/http/entity-view.service';
 import { AttributeScope, DataKeyType } from '@shared/models/telemetry/telemetry.models';
 import { defaultHttpOptionsFromConfig, RequestConfig } from '@core/http/http-utils';
 import { RuleChainService } from '@core/http/rule-chain.service';
-import { AliasInfo, StateParams, SubscriptionInfo } from '@core/api/widget-api.models';
+import { AliasInfo, StateParams, SubscriptionInfo } from '../widget-subscription/widget-api.models';
 import { DataKey, Datasource, DatasourceType, DeprecatedFilter, KeyInfo } from '@shared/models/widget.models';
 import { UtilsService } from '@core/services/utils.service';
 import {

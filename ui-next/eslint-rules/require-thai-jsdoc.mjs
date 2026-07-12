@@ -75,9 +75,21 @@ const requireThaiJsdocRule = {
       /node_modules\//, // dependencies
       /\.next\//, // Next.js build output
       /coverage\//, // test coverage
+      /services\//, // ported Angular services — มี license header แทน JSDoc
+      /websocket\//, // ported Angular websocket services
+      /widget-subscription\//, // ported Angular widget subscription
+      /internationalization\//, // ported Angular translate layer
     ];
 
     if (skippedFilePatterns.some((pattern) => pattern.test(filename))) {
+      return {};
+    }
+
+    // อ่าน source code เพื่อตรวจ license header (/// pattern)
+    const sourceCode = context.sourceCode ?? context.getSourceCode();
+    const sourceText = sourceCode.text;
+    // ถ้าไฟล์เริ่มด้วย /// (Angular license header) → skip JSDoc requirement
+    if (sourceText.startsWith("///")) {
       return {};
     }
 

@@ -66,7 +66,7 @@ import { NULL_UUID } from '@shared/models/id/has-uuid';
 import { EntityType } from '@shared/models/entity-type.models';
 import { firstValueFrom, from, Observable, of, ReplaySubject, Subject, Subscription } from 'rxjs';
 import { EntityId } from '@shared/models/id/entity-id';
-import { TelemetryWebsocketService } from '@core/ws/telemetry-websocket.service';
+import { TelemetryWebsocketService } from '../websocket/telemetry-websocket.service';
 import {
   CompiledTbFunction,
   compileTbFunction,

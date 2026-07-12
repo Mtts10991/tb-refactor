@@ -33,7 +33,7 @@ import { AlarmDataListener } from './alarm-data.service';
 import { PageData } from '@shared/models/page/page-data';
 import { deepClone, isDefined, isDefinedAndNotNull, isObject } from '@core/utils';
 import { simulatedAlarm } from '@shared/models/alarm.models';
-import { TelemetryWebsocketService } from '@core/ws/telemetry-websocket.service';
+import { TelemetryWebsocketService } from '../websocket/telemetry-websocket.service';
 
 export interface AlarmSubscriptionDataKey {
   name: string;
